@@ -1,12 +1,31 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import NavIcon from "../components/NavIcon";
 import { ROLES } from "../data/roles";
 import { ROUTES } from "../data/mockData";
 import { useAuth } from "../context/AuthContext";
 
+function formatTopbarDate(date) {
+  return date.toLocaleDateString("en-US", {
+    weekday: "short",
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
+}
+
+function formatTopbarTime(date) {
+  return date.toLocaleTimeString("en-US", {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: true,
+  });
+}
+
 export default function DashboardLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [now, setNow] = useState(() => new Date());
   const location = useLocation();
   const navigate = useNavigate();
   const { user, logout } = useAuth();
@@ -25,6 +44,14 @@ export default function DashboardLayout() {
     logout();
     navigate("/login", { replace: true });
   }
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setNow(new Date());
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, []);
 
   return (
     <div className="dashboard">
@@ -95,8 +122,8 @@ export default function DashboardLayout() {
               로그아웃
             </button>
             <div className="topbar__datetime">
-              <span className="topbar__date">2026.06.20</span>
-              <span className="topbar__time">14:35</span>
+              <span className="topbar__date">{formatTopbarDate(now)}</span>
+              <span className="topbar__time">{formatTopbarTime(now)}</span>
             </div>
           </div>
         </header>
