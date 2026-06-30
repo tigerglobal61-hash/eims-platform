@@ -1,0 +1,22 @@
+# macOS
+.DS_Store
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+
+# Backend
+backend/.venv/
+backend/__pycache__/
+backend/*.pyc
+
+# Simulator
+simulator/__pycache__/
+simulator/*.pyc
+
+# Environment
+.env
+*.env
+
+# Logs
+*.log
