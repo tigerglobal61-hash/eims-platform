@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from "react";
 import MetricTrendChart from "../components/MetricTrendChart";
 import NodeSelect from "../components/NodeSelect";
 import StatusBadge from "../components/StatusBadge";
-import { getNoaaAlerts, getNoaaForecast, getPrimaryAlert } from "../api/weather";
 import { CHART_COLORS, RECENT_ALERTS } from "../data/mockData";
 import { getNoaaWeather, getPrimaryAlert } from "../api/weather";
 import { formatNodeLocation } from "../data/nodes";
@@ -151,31 +150,6 @@ export default function Dashboard() {
     };
   }, []);
 
-    async function loadAlerts() {
-      try {
-        const nextAlerts = await getNoaaAlerts();
-        if (!cancelled) {
-          setAlerts(nextAlerts);
-        }
-      } catch {
-        if (!cancelled) {
-          setAlerts([]);
-        }
-      }
-    }
-
-    loadForecast(true);
-    loadAlerts();
-
-    const forecastTimer = window.setInterval(() => loadForecast(false), FORECAST_REFRESH_MS);
-    const alertsTimer = window.setInterval(loadAlerts, ALERTS_REFRESH_MS);
-
-    return () => {
-      cancelled = true;
-      window.clearInterval(forecastTimer);
-      window.clearInterval(alertsTimer);
-    };
-  }, []);
 
   function renderKpiCards(metrics, labelKey) {
     return KPI_ORDER.map((metricKey) => {
