@@ -1,13 +1,13 @@
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
-from influxdb_client import InfluxDBClient, Point
 from datetime import datetime, timezone
 from typing import Optional
-from app.config import *
 
-INFLUX_ORG = "Purdue Simple Lab"
-INFLUX_BUCKET = "eims_prod"
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from influxdb_client import InfluxDBClient, Point
+from pydantic import BaseModel
+
+from app.config import INFLUX_URL, INFLUX_TOKEN, INFLUX_ORG, INFLUX_BUCKET
+
 
 app = FastAPI(title="EIMS API")
 
@@ -19,14 +19,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-client = InfluxDBClient(
-    url=INFLUX_URL,
-    token=INFLUX_TOKEN,
-    org=INFLUX_ORG,
-)
 
-query_api = client.query_api()
-write_api = client.write_api()
+def get_influx_client():
+    return InfluxDBClient(
+        url=INFLUX_URL,
+        token=INFLUX_TOKEN,
+        org=INFLUX_ORG,
+    )
 
 
 class SensorData(BaseModel):
@@ -79,7 +78,9 @@ def receive_data(data: SensorData):
         if value is not None:
             point = point.field(key, value)
 
-    write_api.write(bucket=INFLUX_BUCKET, org=INFLUX_ORG, record=point)
+    with get_influx_client() as client:
+        write_api = client.write_api()
+        write_api.write(bucket=INFLUX_BUCKET, org=INFLUX_ORG, record=point)
 
     return {
         "status": "received",
@@ -99,16 +100,19 @@ def latest(device_id: str = "T1"):
       |> last()
     '''
 
-    tables = query_api.query(query)
     result = {}
 
-    for table in tables:
-        for record in table.records:
-            result[record.get_field()] = record.get_value()
-            result["time"] = record.get_time().isoformat()
-            result["device_id"] = record.values.get("device_id")
-            result["site_id"] = record.values.get("site_id")
-            result["zone"] = record.values.get("zone")
+    with get_influx_client() as client:
+        query_api = client.query_api()
+        tables = query_api.query(query)
+
+        for table in tables:
+            for record in table.records:
+                result[record.get_field()] = record.get_value()
+                result["time"] = record.get_time().isoformat()
+                result["device_id"] = record.values.get("device_id")
+                result["site_id"] = record.values.get("site_id")
+                result["zone"] = record.values.get("zone")
 
     return result
 
@@ -123,16 +127,19 @@ def history(device_id: str = "T1", field: str = "noise_dba", hours: int = 1):
       |> filter(fn: (r) => r["_field"] == "{field}")
     '''
 
-    tables = query_api.query(query)
     data = []
 
-    for table in tables:
-        for record in table.records:
-            data.append({
-                "time": record.get_time().isoformat(),
-                "value": record.get_value(),
-                "field": record.get_field(),
-                "device_id": record.values.get("device_id"),
-            })
+    with get_influx_client() as client:
+        query_api = client.query_api()
+        tables = query_api.query(query)
+
+        for table in tables:
+            for record in table.records:
+                data.append({
+                    "time": record.get_time().isoformat(),
+                    "value": record.get_value(),
+                    "field": record.get_field(),
+                    "device_id": record.values.get("device_id"),
+                })
 
     return data
