@@ -1,73 +1,27 @@
 export const ROUTES = [
   {
     path: "/dashboard",
-    label: "대시보드",
+    label: "Dashboard",
     icon: "grid",
-    title: "건설현장 환경 모니터링 시스템",
-    subtitle: "Site A · 전체 현황 요약 · 마지막 갱신 14:35:22",
+    title: "Dashboard",
   },
   {
-    path: "/real-time-monitoring",
-    label: "실시간 모니터링",
-    icon: "realtime",
-    title: "실시간 모니터링",
-    subtitle: "Site A · 8개 센서 노드 · Live Mock Stream",
+    path: "/analysis",
+    label: "Analysis",
+    icon: "analysis",
+    title: "Analysis",
   },
   {
-    path: "/noise-analysis",
-    label: "소음 분석",
-    icon: "noise",
-    title: "소음 분석",
-    subtitle: "Site A · 구역별 · 시간대별 소음 데이터",
-  },
-  {
-    path: "/dust-analysis",
-    label: "미세먼지 분석",
-    icon: "dust",
-    title: "미세먼지 분석",
-    subtitle: "Site A · PM2.5 / PM10 추이 및 통계",
-  },
-  {
-    path: "/environment-analysis",
-    label: "환경 분석",
-    icon: "environment",
-    title: "환경 분석",
-    subtitle: "Site A · 온습도 · 풍속 · 기상 데이터",
-  },
-  {
-    path: "/correlation-analysis",
-    label: "상관 분석",
-    icon: "correlation",
-    title: "상관 분석",
-    subtitle: "Site A · 환경 변수 간 상관관계",
-  },
-  {
-    path: "/event-log",
-    label: "이벤트 로그",
-    icon: "event",
-    title: "이벤트 로그",
-    subtitle: "Site A · 시스템 이벤트 및 알림 기록",
-  },
-  {
-    path: "/reports",
-    label: "리포트",
-    icon: "report",
-    title: "리포트",
-    subtitle: "Site A · 일/주/월간 환경 리포트",
-  },
-  {
-    path: "/data-management",
-    label: "데이터 관리",
-    icon: "data",
-    title: "데이터 관리",
-    subtitle: "Site A · 데이터 수집 · 내보내기 · 보관",
+    path: "/site-display-board",
+    label: "Site Display Board",
+    icon: "display",
+    title: "Site Display Board",
   },
   {
     path: "/settings",
-    label: "설정",
+    label: "Settings",
     icon: "settings",
-    title: "설정",
-    subtitle: "Site A · 시스템 및 알림 설정",
+    title: "Settings",
   },
 ];
 
@@ -169,9 +123,62 @@ export const KPI_DATA = [
 ];
 
 export const RECENT_ALERTS = [
-  { id: 1, time: "14:32", message: "구역 A 소음 기준 초과 (72 dBA)", level: "warning" },
-  { id: 2, time: "13:15", message: "PM2.5 센서 #3 통신 지연", level: "info" },
-  { id: 3, time: "11:48", message: "습도 정상 범위 복귀", level: "good" },
+  {
+    id: 1,
+    time: "14:32",
+    node: "T1",
+    type: "Noise",
+    message: "Noise threshold exceeded (72 dBA)",
+    level: "warning",
+  },
+  {
+    id: 2,
+    time: "13:15",
+    node: "D3",
+    type: "Communication",
+    message: "PM2.5 sensor response delay",
+    level: "info",
+  },
+  {
+    id: 3,
+    time: "12:40",
+    node: "D1",
+    type: "PM10",
+    message: "PM10 caution level reached (145 μg/m³)",
+    level: "warning",
+  },
+  {
+    id: 4,
+    time: "11:48",
+    node: "T2",
+    type: "Environment",
+    message: "Humidity returned to normal range",
+    level: "good",
+  },
+  {
+    id: 5,
+    time: "10:22",
+    node: "D5",
+    type: "Noise",
+    message: "Lmax peak recorded (78 dBA)",
+    level: "critical",
+  },
+  {
+    id: 6,
+    time: "09:05",
+    node: "D8",
+    type: "PM2.5",
+    message: "PM2.5 moving average elevated (38 μg/m³)",
+    level: "warning",
+  },
+  {
+    id: 7,
+    time: "08:17",
+    node: "T1",
+    type: "System",
+    message: "Daily data collection started",
+    level: "info",
+  },
 ];
 
 export const SENSOR_ROWS = [
@@ -199,14 +206,14 @@ export const RTM_KPI_SUMMARY = [
 ];
 
 export const SENSOR_NODES = [
-  { id: "N-01", name: "Node A-1", zone: "구역 A", x: 16, y: 20, noise: 72, pm25: 14, signal: 92, battery: 87, status: "warning" },
-  { id: "N-02", name: "Node A-2", zone: "구역 A", x: 30, y: 34, noise: 68, pm25: 13, signal: 88, battery: 84, status: "good" },
-  { id: "N-03", name: "Node B-1", zone: "구역 B", x: 54, y: 18, noise: 58, pm25: 9, signal: 95, battery: 91, status: "good" },
-  { id: "N-04", name: "Node B-2", zone: "구역 B", x: 68, y: 36, noise: 60, pm25: 10, signal: 90, battery: 79, status: "good" },
-  { id: "N-05", name: "Node C-1", zone: "구역 C", x: 22, y: 60, noise: 61, pm25: 11, signal: 86, battery: 72, status: "good" },
-  { id: "N-06", name: "Node C-2", zone: "구역 C", x: 40, y: 74, noise: 59, pm25: 10, signal: 83, battery: 68, status: "info" },
-  { id: "N-07", name: "Node D-1", zone: "구역 D", x: 74, y: 64, noise: 55, pm25: 8, signal: 97, battery: 94, status: "good" },
-  { id: "N-08", name: "Node D-2", zone: "구역 D", x: 86, y: 50, noise: 54, pm25: 7, signal: 74, battery: 61, status: "warning" },
+  { id: "N-01", name: "Node A-1", zone: "구역 A", x: 16, y: 20, noise: 72, pm25: 14, pm10: 28, signal: 92, battery: 87, status: "warning" },
+  { id: "N-02", name: "Node A-2", zone: "구역 A", x: 30, y: 34, noise: 68, pm25: 13, pm10: 26, signal: 88, battery: 84, status: "good" },
+  { id: "N-03", name: "Node B-1", zone: "구역 B", x: 54, y: 18, noise: 58, pm25: 9, pm10: 18, signal: 95, battery: 91, status: "good" },
+  { id: "N-04", name: "Node B-2", zone: "구역 B", x: 68, y: 36, noise: 60, pm25: 10, pm10: 19, signal: 90, battery: 79, status: "good" },
+  { id: "N-05", name: "Node C-1", zone: "구역 C", x: 22, y: 60, noise: 61, pm25: 11, pm10: 22, signal: 86, battery: 72, status: "good" },
+  { id: "N-06", name: "Node C-2", zone: "구역 C", x: 40, y: 74, noise: 59, pm25: 10, pm10: 20, signal: 83, battery: 68, status: "info" },
+  { id: "N-07", name: "Node D-1", zone: "구역 D", x: 74, y: 64, noise: 55, pm25: 8, pm10: 15, signal: 97, battery: 94, status: "good" },
+  { id: "N-08", name: "Node D-2", zone: "구역 D", x: 86, y: 50, noise: 54, pm25: 7, pm10: 14, signal: 74, battery: 61, status: "warning" },
 ];
 
 export const RTM_TIMELINE_DATA = [

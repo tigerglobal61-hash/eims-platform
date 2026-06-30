@@ -1,35 +1,29 @@
-import { useState } from "react";
-import NoiseChart from "../components/NoiseChart";
-import NoiseDistributionChart from "../components/NoiseDistributionChart";
-import FilterChips from "../components/FilterChips";
-import PageToolbar from "../components/PageToolbar";
+import { useMemo } from "react";
+import MetricTrendChart from "../components/MetricTrendChart";
 import StatusBadge from "../components/StatusBadge";
-import {
-  NOISE_ACOUSTIC_KPI,
-  NOISE_EXCEEDANCE_EVENTS,
-  NOISE_ZONE_COMPARISON,
-} from "../data/mockData";
+import { CHART_COLORS } from "../data/mockData";
+import { getNodeNoiseAnalysis } from "../data/mockAnalysisData";
+import { formatNodeLocation } from "../data/nodes";
+import { METRIC_THRESHOLDS } from "../data/thresholds";
 
 function isOverThreshold(value, threshold = 70) {
   return value > threshold;
 }
 
-export default function NoiseAnalysis() {
-  const [zoneFilter, setZoneFilter] = useState("전체");
+export default function NoiseAnalysis({ embedded = false, nodeId = "T1" }) {
+  const nodeData = useMemo(() => getNodeNoiseAnalysis(nodeId), [nodeId]);
 
-  return (
-    <div className="page-shell na-page">
-      <PageToolbar>
-        <FilterChips options={["오늘", "구역 A", "전체"]} value={zoneFilter} onChange={setZoneFilter} />
-      </PageToolbar>
-
+  const content = (
+    <>
       <section className="na-kpi-row">
-        {NOISE_ACOUSTIC_KPI.map((kpi) => (
+        {nodeData.kpis.map((kpi) => (
           <article key={kpi.id} className={`na-kpi-card na-kpi-card--${kpi.status}`}>
             <div className="na-kpi-card__header">
               <div>
                 <span className="na-kpi-card__label">{kpi.label}</span>
-                <span className="na-kpi-card__desc">{kpi.desc}</span>
+                {kpi.peakTime && (
+                  <span className="na-kpi-card__desc">발생시간 {kpi.peakTime}</span>
+                )}
               </div>
               <StatusBadge status={kpi.status} />
             </div>
@@ -42,90 +36,72 @@ export default function NoiseAnalysis() {
         ))}
       </section>
 
-      <div className="na-charts-grid">
-        <section className="panel">
-          <div className="section-header">
-            <h2 className="section-title">시간대별 소음 추이</h2>
-            <span className="section-meta">24시간 · Site A {zoneFilter !== "오늘" ? `· ${zoneFilter}` : ""} · Mock</span>
-          </div>
-          <NoiseChart height={300} />
-        </section>
-
-        <section className="panel na-exceed-panel">
-          <div className="section-header">
-            <h2 className="section-title">기준 초과 이벤트</h2>
-            <span className="section-meta">{NOISE_EXCEEDANCE_EVENTS.length}건</span>
-          </div>
-          <ul className="na-exceed-list">
-            {NOISE_EXCEEDANCE_EVENTS.map((event) => (
-              <li key={event.id} className={`na-exceed-item na-exceed-item--${event.level}`}>
-                <div className="na-exceed-item__top">
-                  <span className="na-exceed-item__id">{event.id}</span>
-                  <span className="na-exceed-item__time">{event.time}</span>
-                </div>
-                <div className="na-exceed-item__body">
-                  <span className="na-exceed-item__zone">{event.zone}</span>
-                  <span className="na-exceed-item__reading">
-                    {event.measured} dBA
-                    <span className="na-exceed-item__threshold">/ {event.threshold} dBA</span>
-                  </span>
-                </div>
-                <div className="na-exceed-item__footer">
-                  <StatusBadge status={event.level} />
-                  <span className="na-exceed-item__duration">지속 {event.duration}</span>
-                </div>
-              </li>
-            ))}
-          </ul>
-        </section>
-      </div>
-
       <section className="panel">
         <div className="section-header">
-          <h2 className="section-title">소음 레벨 분포</h2>
-          <span className="section-meta">오늘 측정 240건 · dBA 구간별</span>
+          <h2 className="section-title">시간대별 소음 추이</h2>
+          <span className="section-meta">24h · {formatNodeLocation(nodeId)}</span>
         </div>
-        <NoiseDistributionChart height={280} />
+        <MetricTrendChart
+          data={nodeData.trend}
+          dataKey={METRIC_THRESHOLDS.noise.dataKey}
+          name={METRIC_THRESHOLDS.noise.label}
+          unit={METRIC_THRESHOLDS.noise.unit}
+          thresholds={METRIC_THRESHOLDS.noise.levels}
+          stroke={CHART_COLORS.line}
+          height={300}
+        />
       </section>
 
       <section className="panel panel--table">
         <div className="section-header">
-          <h2 className="section-title">구역별 소음 비교</h2>
-          <span className="section-meta">4개 구역 · Acoustic Metrics</span>
+          <h2 className="section-title">노드 소음 상세</h2>
+          <span className="section-meta">Node: {nodeId}</span>
         </div>
         <div className="table-wrap">
           <table className="data-table na-zone-table">
             <thead>
               <tr>
-                <th>구역</th>
-                <th>Leq</th>
+                <th>Node</th>
+                <th>15-min MA</th>
                 <th>Lmax</th>
                 <th>L10</th>
                 <th>L50</th>
                 <th>L90</th>
-                <th>기준 초과</th>
-                <th>상태</th>
+                <th>Exceed</th>
+                <th>Status</th>
               </tr>
             </thead>
             <tbody>
-              {NOISE_ZONE_COMPARISON.map((row) => (
-                <tr key={row.zone}>
-                  <td className="data-table__zone">{row.zone}</td>
-                  <td className={isOverThreshold(row.leq) ? "data-table__warn" : ""}>{row.leq}</td>
-                  <td className={isOverThreshold(row.lmax, 75) ? "data-table__warn" : ""}>{row.lmax}</td>
-                  <td className={isOverThreshold(row.l10) ? "data-table__warn" : ""}>{row.l10}</td>
-                  <td>{row.l50}</td>
-                  <td>{row.l90}</td>
-                  <td className={row.exceed > 0 ? "data-table__warn" : ""}>{row.exceed}회</td>
-                  <td>
-                    <StatusBadge status={row.status} />
-                  </td>
-                </tr>
-              ))}
+              <tr>
+                <td className="data-table__zone">{nodeData.nodeSummary.nodeId}</td>
+                <td className={isOverThreshold(nodeData.nodeSummary.movingAverage) ? "data-table__warn" : ""}>
+                  {nodeData.nodeSummary.movingAverage}
+                </td>
+                <td className={isOverThreshold(nodeData.nodeSummary.lmax, 75) ? "data-table__warn" : ""}>
+                  {nodeData.nodeSummary.lmax}
+                </td>
+                <td className={isOverThreshold(nodeData.nodeSummary.l10) ? "data-table__warn" : ""}>
+                  {nodeData.nodeSummary.l10}
+                </td>
+                <td>{nodeData.nodeSummary.l50}</td>
+                <td>{nodeData.nodeSummary.l90}</td>
+                <td className={nodeData.nodeSummary.exceed > 0 ? "data-table__warn" : ""}>
+                  {nodeData.nodeSummary.exceed}
+                </td>
+                <td>
+                  <StatusBadge status={nodeData.nodeSummary.status} />
+                </td>
+              </tr>
             </tbody>
           </table>
         </div>
       </section>
-    </div>
+    </>
   );
+
+  if (embedded) {
+    return <div className="na-page">{content}</div>;
+  }
+
+  return <div className="page-shell na-page">{content}</div>;
 }

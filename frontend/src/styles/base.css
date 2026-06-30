@@ -1,0 +1,47 @@
+/* ── Root override for full-viewport dashboard ── */
+#root {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding: 0;
+  text-align: left;
+  border: none;
+  min-height: 100vh;
+}
+
+/* ── Design tokens ── */
+.dashboard {
+  --bg-deep: #050d18;
+  --bg-base: #07111f;
+  --bg-surface: #0c1829;
+  --bg-elevated: #111f33;
+  --bg-hover: #162a45;
+  --border-subtle: rgba(56, 120, 190, 0.15);
+  --border-strong: rgba(56, 120, 190, 0.35);
+  --text-primary: #e8f0fa;
+  --text-secondary: #8ba3c0;
+  --text-muted: #5a7290;
+  --accent-blue: #2d8cf0;
+  --accent-cyan: #00c2d4;
+  --status-good: #22c55e;
+  --status-warning: #f59e0b;
+  --status-critical: #ef4444;
+  --status-info: #38bdf8;
+  --sidebar-width: 260px;
+  --topbar-height: 72px;
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --font-sans: "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-mono: "SF Mono", "Cascadia Code", "Consolas", monospace;
+  --shadow-panel: 0 4px 24px rgba(0, 0, 0, 0.35);
+  --transition: 0.2s ease;
+
+  display: flex;
+  min-height: 100vh;
+  background: var(--bg-base);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.5;
+}

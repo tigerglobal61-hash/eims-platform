@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import CorrelationBarChart from "../components/CorrelationBarChart";
 import CorrelationScatterChart from "../components/CorrelationScatterChart";
 import FilterChips from "../components/FilterChips";
 import PageToolbar from "../components/PageToolbar";
 import StatusBadge from "../components/StatusBadge";
-import { CORRELATION_BAR_DATA, CORRELATION_MATRIX, CORRELATION_SCATTER } from "../data/mockData";
+import { getNodeCorrelationAnalysis } from "../data/mockAnalysisData";
+import { formatNodeLocation } from "../data/nodes";
 
 function strengthStatus(strength) {
   if (strength === "강함") return "warning";
@@ -12,44 +13,47 @@ function strengthStatus(strength) {
   return "good";
 }
 
-export default function CorrelationAnalysis() {
+export default function CorrelationAnalysis({ embedded = false, nodeId = "T1" }) {
   const [method, setMethod] = useState("Pearson");
+  const nodeData = useMemo(() => getNodeCorrelationAnalysis(nodeId), [nodeId]);
 
-  return (
-    <div className="page-shell">
-      <PageToolbar>
-        <FilterChips
-          options={["Pearson", "24시간", "Site A"]}
-          value={method}
-          onChange={setMethod}
-        />
-      </PageToolbar>
+  const content = (
+    <>
+      {!embedded && (
+        <PageToolbar>
+          <FilterChips
+            options={["Pearson", "24시간", "Site A"]}
+            value={method}
+            onChange={setMethod}
+          />
+        </PageToolbar>
+      )}
 
       <div className="na-charts-grid">
         <section className="panel">
           <div className="section-header">
             <h2 className="section-title">소음 ↔ PM2.5 산점도</h2>
-            <span className="section-meta">구역별 샘플 · r = 0.62</span>
+            <span className="section-meta">{formatNodeLocation(nodeId)} · r = 0.62</span>
           </div>
-          <CorrelationScatterChart data={CORRELATION_SCATTER} height={300} />
+          <CorrelationScatterChart data={nodeData.scatter} height={300} />
         </section>
 
         <section className="panel">
           <div className="section-header">
             <h2 className="section-title">상관계수 막대 차트</h2>
-            <span className="section-meta">-1.0 ~ 1.0</span>
+            <span className="section-meta">{formatNodeLocation(nodeId)}</span>
           </div>
-          <CorrelationBarChart data={CORRELATION_BAR_DATA} height={300} />
+          <CorrelationBarChart data={nodeData.bar} height={300} />
         </section>
       </div>
 
       <section className="panel">
         <div className="section-header">
           <h2 className="section-title">환경 변수 상관관계</h2>
-            <span className="section-meta">{method} · Mock</span>
+            <span className="section-meta">{method} · {formatNodeLocation(nodeId)}</span>
         </div>
         <div className="correlation-grid">
-          {CORRELATION_MATRIX.map((item) => (
+          {nodeData.matrix.map((item) => (
             <article key={item.pair} className="correlation-card">
               <span className="correlation-card__pair">{item.pair}</span>
               <span className="correlation-card__value">{item.coefficient.toFixed(2)}</span>
@@ -75,7 +79,7 @@ export default function CorrelationAnalysis() {
               </tr>
             </thead>
             <tbody>
-              {CORRELATION_MATRIX.map((item) => (
+              {nodeData.matrix.map((item) => (
                 <tr key={item.pair}>
                   <td className="data-table__zone">{item.pair}</td>
                   <td>{item.coefficient.toFixed(2)}</td>
@@ -93,6 +97,12 @@ export default function CorrelationAnalysis() {
           </table>
         </div>
       </section>
-    </div>
+    </>
   );
+
+  if (embedded) {
+    return content;
+  }
+
+  return <div className="page-shell">{content}</div>;
 }

@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import NavIcon from "../components/NavIcon";
-import StatusBadge from "../components/StatusBadge";
 import { ROLES } from "../data/roles";
 import { ROUTES } from "../data/mockData";
 import { useAuth } from "../context/AuthContext";
@@ -12,8 +11,14 @@ export default function DashboardLayout() {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
 
+  const visibleRoutes = ROUTES.filter(
+    (route) => route.path !== "/settings" || user?.role === "admin",
+  );
+
   const currentRoute =
-    ROUTES.find((route) => route.path === location.pathname) ?? ROUTES[0];
+    visibleRoutes.find((route) => route.path === location.pathname) ??
+    ROUTES.find((route) => route.path === location.pathname) ??
+    ROUTES[0];
   const roleLabel = ROLES[user?.role]?.label ?? user?.role;
 
   function handleLogout() {
@@ -33,7 +38,7 @@ export default function DashboardLayout() {
         </div>
 
         <nav className="sidebar__nav">
-          {ROUTES.map((item) => (
+          {visibleRoutes.map((item) => (
             <NavLink
               key={item.path}
               to={item.path}
@@ -82,13 +87,9 @@ export default function DashboardLayout() {
               <span />
               <span />
             </button>
-            <div>
-              <h1 className="topbar__title">{currentRoute.title}</h1>
-              <p className="topbar__subtitle">{currentRoute.subtitle}</p>
-            </div>
+            <h1 className="topbar__title">{currentRoute.title}</h1>
           </div>
           <div className="topbar__right">
-            <StatusBadge status="good" />
             <span className="topbar__role">{roleLabel}</span>
             <button type="button" className="btn btn--ghost" onClick={handleLogout}>
               로그아웃

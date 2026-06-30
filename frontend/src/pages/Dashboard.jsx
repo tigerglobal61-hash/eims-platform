@@ -1,131 +1,242 @@
-import { useState } from "react";
-import MultiLineChart from "../components/MultiLineChart";
-import NoiseChart from "../components/NoiseChart";
-import FilterChips from "../components/FilterChips";
-import PageToolbar from "../components/PageToolbar";
+import { useEffect, useMemo, useState } from "react";
+import MetricTrendChart from "../components/MetricTrendChart";
+import NodeSelect from "../components/NodeSelect";
 import StatusBadge from "../components/StatusBadge";
+import { getNoaaAlerts, getNoaaForecast, getPrimaryAlert } from "../api/weather";
+import { CHART_COLORS, RECENT_ALERTS } from "../data/mockData";
+import { getNodeMetrics, getNodeTrendData, getSiteAverageMetrics } from "../data/mockDashboardData";
+import { formatNodeLocation } from "../data/nodes";
 import {
-  CHART_COLORS,
-  DASHBOARD_WEEKLY_SUMMARY,
-  KPI_DATA,
-  RECENT_ALERTS,
-  SENSOR_ROWS,
-} from "../data/mockData";
+  METRIC_THRESHOLDS,
+  MOVING_AVERAGE_LABEL,
+  getMetricStatus,
+} from "../data/thresholds";
 
-export default function Dashboard() {
-  const [period, setPeriod] = useState("오늘");
+const KPI_ORDER = ["noise", "pm10", "pm25"];
+const FORECAST_REFRESH_MS = 30 * 60 * 1000;
+const ALERTS_REFRESH_MS = 5 * 60 * 1000;
+
+const SITE_AVERAGE_NOTICE = {
+  ko: "현장 대표값은 활성 노드별 15분 이동평균값의 평균입니다. 알림 및 기준 초과 판단은 각 노드별 15분 이동평균값을 기준으로 개별 판단합니다.",
+  en: "Site average = average of each active node's 15-min moving average. Alerts are evaluated per node.",
+};
+
+function formatAlertExpires(isoString) {
+  if (!isoString) return "—";
+
+  return new Date(isoString).toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+    timeZone: "America/New_York",
+  });
+}
+
+function formatForecastWind(period) {
+  if (!period) return "—";
+  return `${period.windDirection} ${period.windSpeed}`;
+}
+
+function ForecastDay({ label, period }) {
+  if (!period) return null;
 
   return (
-    <div className="page-shell">
-      <PageToolbar>
-        <FilterChips options={["오늘", "7일", "30일"]} value={period} onChange={setPeriod} />
-      </PageToolbar>
+    <article className="weather-card__day">
+      <h3 className="weather-card__day-title">{label}</h3>
+      <p className="weather-card__temp">
+        {period.temperature}°{period.temperatureUnit}
+      </p>
+      <p className="weather-card__forecast">{period.shortForecast}</p>
+      <p className="weather-card__wind">Wind {formatForecastWind(period)}</p>
+    </article>
+  );
+}
 
-      <section className="kpi-section">
-        <div className="section-header">
-          <h2 className="section-title">실시간 KPI</h2>
-          <span className="section-meta">5개 센서 집계 · Site A · {period}</span>
-        </div>
-        <div className="kpi-grid">
-          {KPI_DATA.map((kpi) => (
-            <article key={kpi.id} className={`kpi-card kpi-card--${kpi.status}`}>
-              <div className="kpi-card__header">
-                <span className="kpi-card__label">{kpi.label}</span>
-                <StatusBadge status={kpi.status} />
-              </div>
-              <div className="kpi-card__value-row">
-                <span className="kpi-card__value">{kpi.value}</span>
-                <span className="kpi-card__unit">{kpi.unit}</span>
-              </div>
-              <div className="kpi-card__footer">
-                <span className={`kpi-card__trend kpi-card__trend--${kpi.trendDir}`}>
-                  {kpi.trendDir === "up" ? "▲" : "▼"} {kpi.trend}
-                </span>
-                <span className="kpi-card__threshold">{kpi.threshold}</span>
-              </div>
-              <div className="kpi-card__bar">
-                <div
-                  className={`kpi-card__bar-fill kpi-card__bar-fill--${kpi.status}`}
-                  style={{ width: kpi.barWidth }}
-                />
-              </div>
-            </article>
-          ))}
-        </div>
-      </section>
+function NoaaWeatherCard({ forecast, alerts, loading, error }) {
+  const primaryAlert = getPrimaryAlert(alerts);
 
-      <div className="content-grid">
-        <section className="panel panel--chart">
-          <div className="section-header">
-            <h2 className="section-title">24시간 소음 추이</h2>
-            <span className="section-meta">Noise (dBA)</span>
-          </div>
-          <NoiseChart />
-        </section>
-
-        <section className="panel panel--alerts">
-          <div className="section-header">
-            <h2 className="section-title">최근 알림</h2>
-            <span className="section-meta">{RECENT_ALERTS.length}건</span>
-          </div>
-          <ul className="alert-list">
-            {RECENT_ALERTS.map((alert) => (
-              <li key={alert.id} className={`alert-item alert-item--${alert.level}`}>
-                <span className="alert-item__time">{alert.time}</span>
-                <span className="alert-item__message">{alert.message}</span>
-              </li>
-            ))}
-          </ul>
-        </section>
+  return (
+    <section className="weather-card panel" aria-live="polite">
+      <div className="weather-card__header">
+        <h2 className="weather-card__title">NOAA Weather</h2>
       </div>
 
-      <section className="panel">
-        <div className="section-header">
-          <h2 className="section-title">주간 환경 요약</h2>
-          <span className="section-meta">소음 · PM2.5 · 알림</span>
-        </div>
-        <MultiLineChart
-          data={DASHBOARD_WEEKLY_SUMMARY}
-          xKey="day"
-          xInterval={0}
-          height={260}
-          lines={[
-            { key: "noise", name: "소음 (dBA)", color: CHART_COLORS.line },
-            { key: "pm25", name: "PM2.5 (×2)", color: CHART_COLORS.lineAlt },
-            { key: "alerts", name: "알림 (건)", color: CHART_COLORS.lineWarm },
-          ]}
-        />
-      </section>
+      {loading && !forecast && (
+        <p className="weather-card__message">Loading NOAA weather...</p>
+      )}
 
-      <section className="panel panel--table">
-        <div className="section-header">
-          <h2 className="section-title">구역별 센서 현황</h2>
-          <span className="section-meta">4개 구역</span>
+      {!loading && error && !forecast && (
+        <p className="weather-card__message weather-card__message--error">
+          NOAA weather unavailable
+        </p>
+      )}
+
+      {forecast && (
+        <>
+          <div className="weather-card__forecast-grid">
+            <ForecastDay label="Today" period={forecast.today} />
+            <ForecastDay label="Tomorrow" period={forecast.tomorrow} />
+          </div>
+
+          <div className="weather-card__alerts">
+            <h3 className="weather-card__alerts-title">Active Alerts</h3>
+            {primaryAlert ? (
+              <div className="weather-card__alert-item">
+                <p className="weather-card__alert-event">{primaryAlert.event}</p>
+                <p className="weather-card__alert-meta">
+                  <span>{primaryAlert.severity}</span>
+                  <span>Expires {formatAlertExpires(primaryAlert.expires)}</span>
+                </p>
+              </div>
+            ) : (
+              <p className="weather-card__alert-empty">No active weather alerts</p>
+            )}
+          </div>
+        </>
+      )}
+    </section>
+  );
+}
+
+export default function Dashboard() {
+  const [selectedNodeId, setSelectedNodeId] = useState("T1");
+  const [forecast, setForecast] = useState(null);
+  const [alerts, setAlerts] = useState([]);
+  const [weatherLoading, setWeatherLoading] = useState(true);
+  const [weatherError, setWeatherError] = useState(false);
+
+  const siteMetrics = useMemo(() => getSiteAverageMetrics(), []);
+  const nodeMetrics = useMemo(() => getNodeMetrics(selectedNodeId), [selectedNodeId]);
+  const trendData = useMemo(() => getNodeTrendData(selectedNodeId), [selectedNodeId]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadForecast(showLoading = false) {
+      if (showLoading) {
+        setWeatherLoading(true);
+      }
+      setWeatherError(false);
+
+      try {
+        const nextForecast = await getNoaaForecast();
+        if (!cancelled) {
+          setForecast(nextForecast);
+        }
+      } catch {
+        if (!cancelled) {
+          setWeatherError(true);
+        }
+      } finally {
+        if (!cancelled && showLoading) {
+          setWeatherLoading(false);
+        }
+      }
+    }
+
+    async function loadAlerts() {
+      try {
+        const nextAlerts = await getNoaaAlerts();
+        if (!cancelled) {
+          setAlerts(nextAlerts);
+        }
+      } catch {
+        if (!cancelled) {
+          setAlerts([]);
+        }
+      }
+    }
+
+    loadForecast(true);
+    loadAlerts();
+
+    const forecastTimer = window.setInterval(() => loadForecast(false), FORECAST_REFRESH_MS);
+    const alertsTimer = window.setInterval(loadAlerts, ALERTS_REFRESH_MS);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(forecastTimer);
+      window.clearInterval(alertsTimer);
+    };
+  }, []);
+
+  function renderKpiCards(metrics, labelKey) {
+    return KPI_ORDER.map((metricKey) => {
+      const config = METRIC_THRESHOLDS[metricKey];
+      const value = metrics[metricKey];
+      const status = getMetricStatus(value, metricKey);
+
+      return (
+        <article key={`${labelKey}-${metricKey}`} className={`kpi-card kpi-card--${status}`}>
+          <div className="kpi-card__header">
+            <span className="kpi-card__label">{config[labelKey]}</span>
+            <StatusBadge status={status} />
+          </div>
+          <div className="kpi-card__value-row">
+            <span className="kpi-card__value">{value}</span>
+            <span className="kpi-card__unit">{config.unit}</span>
+          </div>
+          <span className="kpi-card__threshold">{MOVING_AVERAGE_LABEL}</span>
+        </article>
+      );
+    });
+  }
+
+  return (
+    <div className="page-shell dashboard-page">
+      <div className="dashboard-overview-grid">
+        <div className="dashboard-overview-left">
+          <section className="panel dashboard-notice">
+            <p className="dashboard-notice__text">{SITE_AVERAGE_NOTICE.ko}</p>
+            <p className="dashboard-notice__subtext">{SITE_AVERAGE_NOTICE.en}</p>
+          </section>
+
+          <section className="dashboard-kpi-section">
+            <div className="section-header">
+              <h2 className="section-title">Site Average</h2>
+              <span className="section-meta">{MOVING_AVERAGE_LABEL}</span>
+            </div>
+            <div className="dashboard-node-metrics">{renderKpiCards(siteMetrics, "siteLabel")}</div>
+          </section>
         </div>
-        <div className="table-wrap">
+
+        <div className="dashboard-overview-right">
+          <NoaaWeatherCard
+            forecast={forecast}
+            alerts={alerts}
+            loading={weatherLoading}
+            error={weatherError}
+          />
+        </div>
+      </div>
+
+      <section className="panel panel--table dashboard-alerts-wide">
+        <div className="section-header">
+          <h2 className="section-title">Recent Alerts</h2>
+          <span className="section-meta">{RECENT_ALERTS.length} items</span>
+        </div>
+        <div className="table-wrap dashboard-alerts-wide__scroll">
           <table className="data-table">
             <thead>
               <tr>
-                <th>구역</th>
-                <th>소음 (dBA)</th>
-                <th>PM2.5</th>
-                <th>PM10</th>
-                <th>온도 (°C)</th>
-                <th>습도 (%)</th>
-                <th>상태</th>
+                <th>Time</th>
+                <th>Node</th>
+                <th>Type</th>
+                <th>Message</th>
+                <th>Status</th>
               </tr>
             </thead>
             <tbody>
-              {SENSOR_ROWS.map((row) => (
-                <tr key={row.zone}>
-                  <td className="data-table__zone">{row.zone}</td>
-                  <td className={row.noise > 70 ? "data-table__warn" : ""}>{row.noise}</td>
-                  <td>{row.pm25}</td>
-                  <td>{row.pm10}</td>
-                  <td>{row.temp}</td>
-                  <td>{row.humidity}</td>
+              {RECENT_ALERTS.map((alert) => (
+                <tr key={alert.id}>
+                  <td>{alert.time}</td>
+                  <td>{alert.node}</td>
+                  <td>{alert.type}</td>
+                  <td>{alert.message}</td>
                   <td>
-                    <StatusBadge status={row.status} />
+                    <StatusBadge status={alert.level} />
                   </td>
                 </tr>
               ))}
@@ -133,6 +244,70 @@ export default function Dashboard() {
           </table>
         </div>
       </section>
+
+      <section className="panel node-selector-toolbar node-selector-panel">
+        <NodeSelect
+          id="dashboard-node-select"
+          value={selectedNodeId}
+          onChange={setSelectedNodeId}
+          meta={formatNodeLocation(selectedNodeId)}
+        />
+      </section>
+
+      <section className="dashboard-kpi-section">
+        <div className="section-header">
+          <h2 className="section-title">Selected Node</h2>
+          <span className="section-meta">{MOVING_AVERAGE_LABEL}</span>
+        </div>
+        <div className="dashboard-node-metrics">{renderKpiCards(nodeMetrics, "label")}</div>
+      </section>
+
+      <div className="dashboard-charts-stack">
+        <section className="panel panel--chart">
+          <div className="section-header">
+            <h2 className="section-title">Noise dB(A) · {MOVING_AVERAGE_LABEL}</h2>
+          </div>
+          <MetricTrendChart
+            data={trendData}
+            dataKey={METRIC_THRESHOLDS.noise.dataKey}
+            name={METRIC_THRESHOLDS.noise.label}
+            unit={METRIC_THRESHOLDS.noise.unit}
+            thresholds={METRIC_THRESHOLDS.noise.levels}
+            stroke={CHART_COLORS.line}
+            height={240}
+          />
+        </section>
+
+        <section className="panel panel--chart">
+          <div className="section-header">
+            <h2 className="section-title">PM10 · {MOVING_AVERAGE_LABEL}</h2>
+          </div>
+          <MetricTrendChart
+            data={trendData}
+            dataKey={METRIC_THRESHOLDS.pm10.dataKey}
+            name={METRIC_THRESHOLDS.pm10.label}
+            unit={METRIC_THRESHOLDS.pm10.unit}
+            thresholds={METRIC_THRESHOLDS.pm10.levels}
+            stroke={CHART_COLORS.lineAlt}
+            height={240}
+          />
+        </section>
+
+        <section className="panel panel--chart">
+          <div className="section-header">
+            <h2 className="section-title">PM2.5 · {MOVING_AVERAGE_LABEL}</h2>
+          </div>
+          <MetricTrendChart
+            data={trendData}
+            dataKey={METRIC_THRESHOLDS.pm25.dataKey}
+            name={METRIC_THRESHOLDS.pm25.label}
+            unit={METRIC_THRESHOLDS.pm25.unit}
+            thresholds={METRIC_THRESHOLDS.pm25.levels}
+            stroke={CHART_COLORS.lineWarm}
+            height={240}
+          />
+        </section>
+      </div>
     </div>
   );
 }

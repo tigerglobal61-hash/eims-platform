@@ -14,6 +14,19 @@ const ICONS = {
       <path d="M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1l2.1-2.1M17 7l2.1-2.1" />
     </svg>
   ),
+  display: (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <rect x="2" y="4" width="20" height="14" rx="2" />
+      <path d="M8 22h8M12 18v4" />
+      <path d="M7 9h10M7 12h6" />
+    </svg>
+  ),
+  analysis: (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M4 19V5M4 19h16" />
+      <path d="M8 17V11M12 17V7M16 17v-4" />
+    </svg>
+  ),
   noise: (
     <svg viewBox="0 0 24 24" aria-hidden="true">
       <path d="M4 10v4M8 7v10M12 4v16M16 8v8M20 10v4" />

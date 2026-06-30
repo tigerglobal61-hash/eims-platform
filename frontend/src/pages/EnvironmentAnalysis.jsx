@@ -1,28 +1,26 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import MultiLineChart from "../components/MultiLineChart";
 import FilterChips from "../components/FilterChips";
 import PageToolbar from "../components/PageToolbar";
 import StatusBadge from "../components/StatusBadge";
-import {
-  CHART_COLORS,
-  ENV_COMFORT_TREND,
-  ENV_KPI,
-  ENV_TREND_DATA,
-  ENV_WIND_DATA,
-  ENV_ZONE_COMPARISON,
-} from "../data/mockData";
+import { CHART_COLORS } from "../data/mockData";
+import { getNodeEnvironmentAnalysis } from "../data/mockAnalysisData";
+import { formatNodeLocation } from "../data/nodes";
 
-export default function EnvironmentAnalysis() {
+export default function EnvironmentAnalysis({ embedded = false, nodeId = "T1" }) {
   const [view, setView] = useState("오늘");
+  const nodeData = useMemo(() => getNodeEnvironmentAnalysis(nodeId), [nodeId]);
 
-  return (
-    <div className="page-shell">
-      <PageToolbar>
-        <FilterChips options={["오늘", "온습도", "풍속"]} value={view} onChange={setView} />
-      </PageToolbar>
+  const content = (
+    <>
+      {!embedded && (
+        <PageToolbar>
+          <FilterChips options={["오늘", "온습도", "풍속"]} value={view} onChange={setView} />
+        </PageToolbar>
+      )}
 
       <section className="na-kpi-row">
-        {ENV_KPI.map((kpi) => (
+        {nodeData.kpis.map((kpi) => (
           <article key={kpi.id} className={`na-kpi-card na-kpi-card--${kpi.status}`}>
             <div className="na-kpi-card__header">
               <div>
@@ -43,10 +41,10 @@ export default function EnvironmentAnalysis() {
         <section className="panel">
           <div className="section-header">
             <h2 className="section-title">24시간 온습도 추이</h2>
-            <span className="section-meta">Temperature / Humidity</span>
+            <span className="section-meta">{formatNodeLocation(nodeId)} · Temperature / Humidity</span>
           </div>
           <MultiLineChart
-            data={ENV_TREND_DATA}
+            data={nodeData.trend}
             height={280}
             lines={[
               { key: "temp", name: "온도 (°C)", color: CHART_COLORS.lineWarm },
@@ -58,10 +56,10 @@ export default function EnvironmentAnalysis() {
         <section className="panel">
           <div className="section-header">
             <h2 className="section-title">24시간 풍속 추이</h2>
-            <span className="section-meta">Wind / Gust</span>
+            <span className="section-meta">{formatNodeLocation(nodeId)} · Wind / Gust</span>
           </div>
           <MultiLineChart
-            data={ENV_WIND_DATA}
+            data={nodeData.wind}
             height={280}
             yLabel="m/s"
             lines={[
@@ -75,10 +73,10 @@ export default function EnvironmentAnalysis() {
       <section className="panel">
         <div className="section-header">
           <h2 className="section-title">쾌적 지수 추이</h2>
-          <span className="section-meta">Comfort Index · 0–100</span>
+          <span className="section-meta">{formatNodeLocation(nodeId)} · Comfort Index</span>
         </div>
         <MultiLineChart
-          data={ENV_COMFORT_TREND}
+          data={nodeData.comfort}
           height={240}
           lines={[{ key: "comfort", name: "쾌적 지수", color: CHART_COLORS.lineGreen }]}
         />
@@ -87,7 +85,7 @@ export default function EnvironmentAnalysis() {
       <section className="panel panel--table">
         <div className="section-header">
           <h2 className="section-title">구역별 환경 비교</h2>
-          <span className="section-meta">4개 구역</span>
+          <span className="section-meta">{formatNodeLocation(nodeId)}</span>
         </div>
         <div className="table-wrap">
           <table className="data-table na-zone-table">
@@ -102,7 +100,7 @@ export default function EnvironmentAnalysis() {
               </tr>
             </thead>
             <tbody>
-              {ENV_ZONE_COMPARISON.map((row) => (
+              {nodeData.zoneComparison.map((row) => (
                 <tr key={row.zone}>
                   <td className="data-table__zone">{row.zone}</td>
                   <td>{row.temp}</td>
@@ -118,6 +116,12 @@ export default function EnvironmentAnalysis() {
           </table>
         </div>
       </section>
-    </div>
+    </>
   );
+
+  if (embedded) {
+    return content;
+  }
+
+  return <div className="page-shell">{content}</div>;
 }
