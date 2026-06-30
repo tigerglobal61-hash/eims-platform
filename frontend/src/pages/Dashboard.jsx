@@ -2,8 +2,13 @@ import { useEffect, useMemo, useState } from "react";
 import MetricTrendChart from "../components/MetricTrendChart";
 import NodeSelect from "../components/NodeSelect";
 import StatusBadge from "../components/StatusBadge";
-import { CHART_COLORS, RECENT_ALERTS } from "../data/mockData";
 import { getNoaaWeather, getPrimaryAlert } from "../api/weather";
+import { CHART_COLORS, RECENT_ALERTS } from "../data/mockData";
+import {
+  getNodeMetrics,
+  getNodeTrendData,
+  getSiteAverageMetrics,
+} from "../data/mockDashboardData";
 import { formatNodeLocation } from "../data/nodes";
 import {
   METRIC_THRESHOLDS,
@@ -111,16 +116,16 @@ export default function Dashboard() {
 
   useEffect(() => {
     let cancelled = false;
-  
+
     async function loadWeather(showLoading = false) {
       if (showLoading) {
         setWeatherLoading(true);
       }
       setWeatherError(false);
-  
+
       try {
         const weather = await getNoaaWeather({ siteId: "HEP" });
-  
+
         if (!cancelled) {
           setForecast(weather.forecast);
           setAlerts(weather.alerts ?? []);
@@ -136,20 +141,19 @@ export default function Dashboard() {
         }
       }
     }
-  
+
     loadWeather(true);
-  
+
     const weatherTimer = window.setInterval(
       () => loadWeather(false),
-      ALERTS_REFRESH_MS
+      ALERTS_REFRESH_MS,
     );
-  
+
     return () => {
       cancelled = true;
       window.clearInterval(weatherTimer);
     };
   }, []);
-
 
   function renderKpiCards(metrics, labelKey) {
     return KPI_ORDER.map((metricKey) => {
