@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import MetricTrendChart from "../components/MetricTrendChart";
 import NodeSelect from "../components/NodeSelect";
 import StatusBadge from "../components/StatusBadge";
+import { fetchLatestAverage, mapLatestAvgToNodeMetrics } from "../api/latest";
 import { getNoaaWeather, getPrimaryAlert } from "../api/weather";
 import { CHART_COLORS, RECENT_ALERTS } from "../data/mockData";
 import {
@@ -105,14 +106,50 @@ function NoaaWeatherCard({ forecast, alerts, loading, error }) {
 
 export default function Dashboard() {
   const [selectedNodeId, setSelectedNodeId] = useState("T1");
+  const [t1Metrics, setT1Metrics] = useState(null);
   const [forecast, setForecast] = useState(null);
   const [alerts, setAlerts] = useState([]);
   const [weatherLoading, setWeatherLoading] = useState(true);
   const [weatherError, setWeatherError] = useState(false);
 
   const siteMetrics = useMemo(() => getSiteAverageMetrics(), []);
-  const nodeMetrics = useMemo(() => getNodeMetrics(selectedNodeId), [selectedNodeId]);
+  const nodeMetrics = useMemo(() => {
+    if (selectedNodeId === "T1") {
+      return t1Metrics ?? getNodeMetrics("T1");
+    }
+
+    return getNodeMetrics(selectedNodeId);
+  }, [selectedNodeId, t1Metrics]);
   const trendData = useMemo(() => getNodeTrendData(selectedNodeId), [selectedNodeId]);
+
+  useEffect(() => {
+    if (selectedNodeId !== "T1") {
+      return undefined;
+    }
+
+    let cancelled = false;
+
+    async function loadT1Metrics() {
+      try {
+        const data = await fetchLatestAverage("T1", 15);
+        const metrics = mapLatestAvgToNodeMetrics(data);
+
+        if (!cancelled) {
+          setT1Metrics(metrics ?? null);
+        }
+      } catch {
+        if (!cancelled) {
+          setT1Metrics(null);
+        }
+      }
+    }
+
+    loadT1Metrics();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedNodeId]);
 
   useEffect(() => {
     let cancelled = false;

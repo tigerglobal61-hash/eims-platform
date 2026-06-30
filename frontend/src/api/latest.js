@@ -13,6 +13,9 @@
  * }
  */
 
+const API_BASE_URL =
+  import.meta.env.VITE_API_URL || "https://eims-api.onrender.com";
+
 const MOCK_DELAY_MS = 300;
 
 export const mockLatestData = {
@@ -103,6 +106,38 @@ function wait(ms) {
   return new Promise((resolve) => {
     window.setTimeout(resolve, ms);
   });
+}
+
+export function mapLatestAvgToNodeMetrics(data) {
+  const noise = data?.noise_dba;
+  const pm10 = data?.pm10;
+  const pm25 = data?.pm25;
+
+  if (
+    [noise, pm10, pm25].some(
+      (value) => typeof value !== "number" || Number.isNaN(value),
+    )
+  ) {
+    return null;
+  }
+
+  return {
+    noise: Math.round(noise * 10) / 10,
+    pm10: Math.round(pm10 * 10) / 10,
+    pm25: Math.round(pm25 * 10) / 10,
+  };
+}
+
+export async function fetchLatestAverage(deviceId, minutes = 15) {
+  const response = await fetch(
+    `${API_BASE_URL}/api/v1/latest_avg?device_id=${encodeURIComponent(deviceId)}&minutes=${minutes}`,
+  );
+
+  if (!response.ok) {
+    throw new Error(`Latest average API failed (${response.status})`);
+  }
+
+  return response.json();
 }
 
 export async function fetchLatestReading(deviceId) {
