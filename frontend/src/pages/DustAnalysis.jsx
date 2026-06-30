@@ -3,7 +3,11 @@ import BarDistributionChart from "../components/BarDistributionChart";
 import MultiLineChart from "../components/MultiLineChart";
 import StatusBadge from "../components/StatusBadge";
 import { CHART_COLORS } from "../data/mockData";
-import { getNodeDustAnalysis } from "../data/mockAnalysisData";
+import {
+  getAnalysisAverageKpiLabel,
+  getNodeDustAnalysis,
+  pmStatus,
+} from "../data/mockAnalysisData";
 import { formatNodeLocation } from "../data/nodes";
 
 function dustBarColor(entry) {
@@ -13,13 +17,45 @@ function dustBarColor(entry) {
   return CHART_COLORS.line;
 }
 
-export default function DustAnalysis({ embedded = false, nodeId = "T1" }) {
+export default function DustAnalysis({
+  embedded = false,
+  nodeId = "T1",
+  liveMetrics = null,
+  averageMinutes = 15,
+}) {
   const nodeData = useMemo(() => getNodeDustAnalysis(nodeId), [nodeId]);
+  const kpis = useMemo(() => {
+    if (!liveMetrics) {
+      return nodeData.kpis;
+    }
+
+    return nodeData.kpis.map((kpi) => {
+      if (kpi.id === "pm25_avg") {
+        return {
+          ...kpi,
+          label: getAnalysisAverageKpiLabel(averageMinutes, "pm25"),
+          value: String(liveMetrics.pm25),
+          status: pmStatus(liveMetrics.pm25, 35, 45, 55),
+        };
+      }
+
+      if (kpi.id === "pm10_avg") {
+        return {
+          ...kpi,
+          label: getAnalysisAverageKpiLabel(averageMinutes, "pm10"),
+          value: String(liveMetrics.pm10),
+          status: pmStatus(liveMetrics.pm10, 150, 160, 170),
+        };
+      }
+
+      return kpi;
+    });
+  }, [nodeData.kpis, liveMetrics, averageMinutes]);
 
   const content = (
     <>
       <section className="na-kpi-row">
-        {nodeData.kpis.map((kpi) => (
+        {kpis.map((kpi) => (
           <article key={kpi.id} className={`na-kpi-card na-kpi-card--${kpi.status}`}>
             <div className="na-kpi-card__header">
               <div>

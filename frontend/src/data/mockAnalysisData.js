@@ -47,6 +47,52 @@ function pmStatus(value, caution, warning, critical) {
   return "good";
 }
 
+export const ANALYSIS_AVERAGE_WINDOW_OPTIONS = ["15 min", "1 hr", "8 hr", "24 hr"];
+
+export const ANALYSIS_AVERAGE_WINDOW_MINUTES = {
+  "15 min": 15,
+  "1 hr": 60,
+  "8 hr": 480,
+  "24 hr": 1440,
+};
+
+export function getAnalysisAverageWindowLabel(minutes) {
+  return (
+    ANALYSIS_AVERAGE_WINDOW_OPTIONS.find(
+      (label) => ANALYSIS_AVERAGE_WINDOW_MINUTES[label] === minutes,
+    ) ?? "15 min"
+  );
+}
+
+export function getAnalysisAverageKpiLabel(minutes, metricKey) {
+  const windowLabel =
+    minutes === 15
+      ? "15-min"
+      : minutes === 60
+        ? "1 hr"
+        : minutes === 480
+          ? "8 hr"
+          : minutes === 1440
+            ? "24 hr"
+            : `${minutes}-min`;
+
+  if (metricKey === "noise") {
+    return minutes === 15 ? "15-min Moving Average" : `${windowLabel} Average`;
+  }
+
+  if (metricKey === "pm25") {
+    return `PM2.5 ${windowLabel} Average`;
+  }
+
+  if (metricKey === "pm10") {
+    return `PM10 ${windowLabel} Average`;
+  }
+
+  return `${windowLabel} Average`;
+}
+
+export { noiseStatus, pmStatus };
+
 export function getNodeNoiseAnalysis(nodeId) {
   const metrics = getNodeMetrics(nodeId);
   const trend = getNodeTrendData(nodeId);

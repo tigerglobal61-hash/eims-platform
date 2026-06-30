@@ -2,7 +2,11 @@ import { useMemo } from "react";
 import MetricTrendChart from "../components/MetricTrendChart";
 import StatusBadge from "../components/StatusBadge";
 import { CHART_COLORS } from "../data/mockData";
-import { getNodeNoiseAnalysis } from "../data/mockAnalysisData";
+import {
+  getAnalysisAverageKpiLabel,
+  getNodeNoiseAnalysis,
+  noiseStatus,
+} from "../data/mockAnalysisData";
 import { formatNodeLocation } from "../data/nodes";
 import { METRIC_THRESHOLDS } from "../data/thresholds";
 
@@ -10,13 +14,36 @@ function isOverThreshold(value, threshold = 70) {
   return value > threshold;
 }
 
-export default function NoiseAnalysis({ embedded = false, nodeId = "T1" }) {
+export default function NoiseAnalysis({
+  embedded = false,
+  nodeId = "T1",
+  liveMetrics = null,
+  averageMinutes = 15,
+}) {
   const nodeData = useMemo(() => getNodeNoiseAnalysis(nodeId), [nodeId]);
+  const kpis = useMemo(() => {
+    if (!liveMetrics) {
+      return nodeData.kpis;
+    }
+
+    return nodeData.kpis.map((kpi) => {
+      if (kpi.id !== "ma") {
+        return kpi;
+      }
+
+      return {
+        ...kpi,
+        label: getAnalysisAverageKpiLabel(averageMinutes, "noise"),
+        value: String(liveMetrics.noise),
+        status: noiseStatus(liveMetrics.noise),
+      };
+    });
+  }, [nodeData.kpis, liveMetrics, averageMinutes]);
 
   const content = (
     <>
       <section className="na-kpi-row">
-        {nodeData.kpis.map((kpi) => (
+        {kpis.map((kpi) => (
           <article key={kpi.id} className={`na-kpi-card na-kpi-card--${kpi.status}`}>
             <div className="na-kpi-card__header">
               <div>

@@ -19,6 +19,7 @@ import {
 
 const KPI_ORDER = ["noise", "pm10", "pm25"];
 const ALERTS_REFRESH_MS = 5 * 60 * 1000;
+const T1_KPI_REFRESH_MS = 30 * 1000;
 
 const SITE_AVERAGE_NOTICE = {
   ko: "현장 대표값은 활성 노드별 15분 이동평균값의 평균입니다. 알림 및 기준 초과 판단은 각 노드별 15분 이동평균값을 기준으로 개별 판단합니다.",
@@ -41,6 +42,15 @@ function formatAlertExpires(isoString) {
 function formatForecastWind(period) {
   if (!period) return "—";
   return `${period.windDirection} ${period.windSpeed}`;
+}
+
+function formatT1UpdatedAt(date) {
+  return date.toLocaleTimeString("en-US", {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: true,
+  });
 }
 
 function ForecastDay({ label, period }) {
@@ -107,6 +117,7 @@ function NoaaWeatherCard({ forecast, alerts, loading, error }) {
 export default function Dashboard() {
   const [selectedNodeId, setSelectedNodeId] = useState("T1");
   const [t1Metrics, setT1Metrics] = useState(null);
+  const [t1UpdatedAt, setT1UpdatedAt] = useState(null);
   const [forecast, setForecast] = useState(null);
   const [alerts, setAlerts] = useState([]);
   const [weatherLoading, setWeatherLoading] = useState(true);
@@ -135,19 +146,29 @@ export default function Dashboard() {
         const metrics = mapLatestAvgToNodeMetrics(data);
 
         if (!cancelled) {
-          setT1Metrics(metrics ?? null);
+          if (metrics) {
+            setT1Metrics(metrics);
+            setT1UpdatedAt(new Date());
+          } else {
+            setT1Metrics(null);
+            setT1UpdatedAt(null);
+          }
         }
       } catch {
         if (!cancelled) {
           setT1Metrics(null);
+          setT1UpdatedAt(null);
         }
       }
     }
 
     loadT1Metrics();
 
+    const refreshTimer = window.setInterval(loadT1Metrics, T1_KPI_REFRESH_MS);
+
     return () => {
       cancelled = true;
+      window.clearInterval(refreshTimer);
     };
   }, [selectedNodeId]);
 
@@ -287,7 +308,12 @@ export default function Dashboard() {
       <section className="dashboard-kpi-section">
         <div className="section-header">
           <h2 className="section-title">Selected Node</h2>
-          <span className="section-meta">{MOVING_AVERAGE_LABEL}</span>
+          <span className="section-meta">
+            {MOVING_AVERAGE_LABEL}
+            {selectedNodeId === "T1" && t1UpdatedAt
+              ? ` · Updated: ${formatT1UpdatedAt(t1UpdatedAt)}`
+              : ""}
+          </span>
         </div>
         <div className="dashboard-node-metrics">{renderKpiCards(nodeMetrics, "label")}</div>
       </section>
