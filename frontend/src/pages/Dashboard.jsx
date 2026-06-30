@@ -4,7 +4,7 @@ import NodeSelect from "../components/NodeSelect";
 import StatusBadge from "../components/StatusBadge";
 import { getNoaaAlerts, getNoaaForecast, getPrimaryAlert } from "../api/weather";
 import { CHART_COLORS, RECENT_ALERTS } from "../data/mockData";
-import { getNodeMetrics, getNodeTrendData, getSiteAverageMetrics } from "../data/mockDashboardData";
+import { getNoaaWeather, getPrimaryAlert } from "../api/weather";
 import { formatNodeLocation } from "../data/nodes";
 import {
   METRIC_THRESHOLDS,
@@ -13,7 +13,6 @@ import {
 } from "../data/thresholds";
 
 const KPI_ORDER = ["noise", "pm10", "pm25"];
-const FORECAST_REFRESH_MS = 30 * 60 * 1000;
 const ALERTS_REFRESH_MS = 5 * 60 * 1000;
 
 const SITE_AVERAGE_NOTICE = {
@@ -113,28 +112,44 @@ export default function Dashboard() {
 
   useEffect(() => {
     let cancelled = false;
-
-    async function loadForecast(showLoading = false) {
+  
+    async function loadWeather(showLoading = false) {
       if (showLoading) {
         setWeatherLoading(true);
       }
       setWeatherError(false);
-
+  
       try {
-        const nextForecast = await getNoaaForecast();
+        const weather = await getNoaaWeather({ siteId: "HEP" });
+  
         if (!cancelled) {
-          setForecast(nextForecast);
+          setForecast(weather.forecast);
+          setAlerts(weather.alerts ?? []);
         }
       } catch {
         if (!cancelled) {
           setWeatherError(true);
+          setAlerts([]);
         }
       } finally {
-        if (!cancelled && showLoading) {
+        if (!cancelled) {
           setWeatherLoading(false);
         }
       }
     }
+  
+    loadWeather(true);
+  
+    const weatherTimer = window.setInterval(
+      () => loadWeather(false),
+      ALERTS_REFRESH_MS
+    );
+  
+    return () => {
+      cancelled = true;
+      window.clearInterval(weatherTimer);
+    };
+  }, []);
 
     async function loadAlerts() {
       try {
