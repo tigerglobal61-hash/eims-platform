@@ -4,11 +4,10 @@ from pydantic import BaseModel
 from influxdb_client import InfluxDBClient, Point
 from datetime import datetime, timezone
 from typing import Optional
+from app.config import *
 
-INFLUX_URL = "http://localhost:8086"
 INFLUX_ORG = "Purdue Simple Lab"
 INFLUX_BUCKET = "eims_prod"
-INFLUX_TOKEN = "h8qK8BO3UBEhpNQdsDa8OL0VTYtJ7cZI3n1U_ywIFGa86NKcmTnHNrwZyiWfTJ5adkjFzpIRLhlwf5yRSPTSAQ=="
 
 app = FastAPI(title="EIMS API")
 
