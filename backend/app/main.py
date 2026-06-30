@@ -280,7 +280,12 @@ def latest_avg(device_id: str = "T1", minutes: int = 15):
       |> range(start: -{minutes}m)
       |> filter(fn: (r) => r["_measurement"] == "sensor_data")
       |> filter(fn: (r) => r["device_id"] == "{device_id}")
-      |> filter(fn: (r) => r["_field"] == "noise_dba" or r["_field"] == "pm10" or r["_field"] == "pm25")
+      |> filter(fn: (r) =>
+        r["_field"] == "noise_dba" or
+        r["_field"] == "pm10" or
+        r["_field"] == "pm25"
+      )
+      |> group(columns: ["_field"])
       |> mean()
     '''
 
