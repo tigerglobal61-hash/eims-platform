@@ -272,3 +272,30 @@ def weather(site_id: str = "HEP"):
         "forecast": forecast,
         "alerts": alerts,
     }
+    
+@app.get("/api/v1/latest_avg")
+def latest_avg(device_id: str = "T1", minutes: int = 15):
+    query = f'''
+    from(bucket: "{INFLUX_BUCKET}")
+      |> range(start: -{minutes}m)
+      |> filter(fn: (r) => r["_measurement"] == "sensor_data")
+      |> filter(fn: (r) => r["device_id"] == "{device_id}")
+      |> filter(fn: (r) => r["_field"] == "noise_dba" or r["_field"] == "pm10" or r["_field"] == "pm25")
+      |> mean()
+    '''
+
+    result = {
+        "device_id": device_id,
+        "window_minutes": minutes,
+    }
+
+    with get_influx_client() as client:
+        query_api = client.query_api()
+        tables = query_api.query(query)
+
+        for table in tables:
+            for record in table.records:
+                result[record.get_field()] = round(record.get_value(), 2)
+
+    result["time"] = datetime.now(timezone.utc).isoformat()
+    return result
