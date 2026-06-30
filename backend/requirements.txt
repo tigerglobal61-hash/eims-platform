@@ -4,3 +4,4 @@ influxdb-client
 python-dotenv
 requests
 pydantic
+requests
