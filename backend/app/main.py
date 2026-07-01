@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 from typing import Optional
-
+from app.auth.routes import router as auth_router
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from influxdb_client import InfluxDBClient, Point
@@ -10,6 +10,8 @@ from app.config import INFLUX_URL, INFLUX_TOKEN, INFLUX_ORG, INFLUX_BUCKET
 import requests
 
 app = FastAPI(title="EIMS API")
+
+app.include_router(auth_router)
 
 app.add_middleware(
     CORSMiddleware,

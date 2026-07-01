@@ -3,7 +3,7 @@ import time
 from datetime import datetime, timezone
 import requests
 
-API_URL = "http://localhost:8000/api/v1/data"
+API_URL = "https://eims-api.onrender.com/api/v1/data"
 
 DEVICE_ID = "T1"
 SITE_ID = "HEP"
