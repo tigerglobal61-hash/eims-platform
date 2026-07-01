@@ -3,26 +3,34 @@ import { Navigate, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
 export default function Login() {
-  const [username, setUsername] = useState("admin");
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
-  const { user, login } = useAuth();
+  const [loading, setLoading] = useState(false);
+  const { user, authReady, login } = useAuth();
   const navigate = useNavigate();
+
+  if (!authReady) return null;
 
   if (user) {
     return <Navigate to="/dashboard" replace />;
   }
 
-  function handleSubmit(event) {
+  async function handleSubmit(event) {
     event.preventDefault();
     setError("");
+    setLoading(true);
 
-    if (login(username, password)) {
-      navigate("/dashboard");
-      return;
+    try {
+      const ok = await login(username, password);
+      if (ok) {
+        navigate("/dashboard", { replace: true });
+      } else {
+        setError("아이디 또는 비밀번호가 올바르지 않습니다.");
+      }
+    } finally {
+      setLoading(false);
     }
-
-    setError("아이디 또는 비밀번호가 올바르지 않습니다.");
   }
 
   return (
@@ -47,7 +55,7 @@ export default function Login() {
                 setUsername(event.target.value);
                 if (error) setError("");
               }}
-              placeholder="admin"
+              placeholder="아이디"
               autoComplete="username"
             />
           </label>
@@ -69,12 +77,15 @@ export default function Login() {
 
           {error && <p className="form-error">{error}</p>}
 
-          <button type="submit" className="btn btn--primary btn--full">
-            로그인
+          <button
+            type="submit"
+            className="btn btn--primary btn--full"
+            disabled={loading}
+          >
+            {loading && <span className="btn-spinner" aria-hidden="true" />}
+            {loading ? "로그인 중..." : "로그인"}
           </button>
         </form>
-
-        <p className="login-card__hint">Mock 계정: admin / admin123</p>
       </div>
     </div>
   );

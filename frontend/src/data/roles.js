@@ -15,9 +15,3 @@ export const ROLES = {
     permissions: ["read"],
   },
 };
-
-export const MOCK_USERS = [
-  { username: "admin", password: "admin123", role: "admin" },
-  { username: "manager", password: "manager123", role: "manager" },
-  { username: "viewer", password: "viewer123", role: "viewer" },
-];

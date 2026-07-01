@@ -16,10 +16,14 @@ import SiteDisplayBoard from "./pages/SiteDisplayBoard";
 import Settings from "./pages/Settings";
 
 function ProtectedRoute() {
-  const { user } = useAuth();
+  const { user, authReady } = useAuth();
+
+  if (!authReady) return null;
+
   if (!user) {
     return <Navigate to="/login" replace />;
   }
+
   return <Outlet />;
 }
 
