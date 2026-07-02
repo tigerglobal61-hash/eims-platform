@@ -306,3 +306,50 @@ def latest_avg(device_id: str = "T1", minutes: int = 15):
 
     result["time"] = datetime.now(timezone.utc).isoformat()
     return result
+
+
+def _round_chart_value(value):
+    if value is None:
+        return None
+    return round(float(value), 2)
+
+
+def _format_chart_time(dt):
+    return dt.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+@app.get("/api/v1/chart")
+def chart(device_id: str = "T1", hours: int = 24, window_minutes: int = 15):
+    query = f'''
+    from(bucket: "{INFLUX_BUCKET}")
+      |> range(start: -{hours}h)
+      |> filter(fn: (r) => r["_measurement"] == "sensor_data")
+      |> filter(fn: (r) => r["device_id"] == "{device_id}")
+      |> filter(fn: (r) =>
+        r["_field"] == "noise_dba" or
+        r["_field"] == "pm10" or
+        r["_field"] == "pm25"
+      )
+      |> aggregateWindow(every: {window_minutes}m, fn: mean, createEmpty: false)
+      |> group()
+      |> pivot(rowKey: ["_time"], columnKey: ["_field"], valueColumn: "_value")
+    '''
+
+    data = []
+
+    with get_influx_client() as client:
+        query_api = client.query_api()
+        tables = query_api.query(query)
+
+        for table in tables:
+            for record in table.records:
+                values = record.values
+                data.append({
+                    "time": _format_chart_time(record.get_time()),
+                    "noise": _round_chart_value(values.get("noise_dba")),
+                    "pm10": _round_chart_value(values.get("pm10")),
+                    "pm25": _round_chart_value(values.get("pm25")),
+                })
+
+    data.sort(key=lambda point: point["time"])
+    return data
