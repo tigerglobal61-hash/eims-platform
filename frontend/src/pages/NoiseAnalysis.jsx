@@ -8,6 +8,7 @@ import {
   noiseStatus,
 } from "../data/mockAnalysisData";
 import { formatNodeLocation } from "../data/nodes";
+import useChartData from "../hooks/useChartData";
 import { METRIC_THRESHOLDS } from "../data/thresholds";
 
 function isOverThreshold(value, threshold = 70) {
@@ -21,6 +22,7 @@ export default function NoiseAnalysis({
   averageMinutes = 15,
 }) {
   const nodeData = useMemo(() => getNodeNoiseAnalysis(nodeId), [nodeId]);
+  const { data: trendData } = useChartData(nodeId);
   const kpis = useMemo(() => {
     if (!liveMetrics) {
       return nodeData.kpis;
@@ -69,7 +71,7 @@ export default function NoiseAnalysis({
           <span className="section-meta">24h · {formatNodeLocation(nodeId)}</span>
         </div>
         <MetricTrendChart
-          data={nodeData.trend}
+          data={trendData}
           dataKey={METRIC_THRESHOLDS.noise.dataKey}
           name={METRIC_THRESHOLDS.noise.label}
           unit={METRIC_THRESHOLDS.noise.unit}

@@ -8,6 +8,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { formatChartTimeLabel } from "../api/chart";
 import { CHART_COLORS } from "../data/mockData";
 
 function ChartTooltip({ active, payload, label }) {
@@ -15,7 +16,7 @@ function ChartTooltip({ active, payload, label }) {
 
   return (
     <div className="noise-chart-tooltip">
-      <span className="noise-chart-tooltip__time">{label}</span>
+      <span className="noise-chart-tooltip__time">{formatChartTimeLabel(label)}</span>
       {payload.map((entry) => (
         <span key={entry.dataKey} className="noise-chart-tooltip__value" style={{ color: entry.color }}>
           {entry.name}: {entry.value}
@@ -44,6 +45,7 @@ export default function MultiLineChart({
             tickLine={false}
             axisLine={{ stroke: CHART_COLORS.grid }}
             interval={xInterval}
+            tickFormatter={xKey === "time" ? formatChartTimeLabel : undefined}
           />
           <YAxis
             tick={{ fill: CHART_COLORS.axis, fontSize: 11 }}

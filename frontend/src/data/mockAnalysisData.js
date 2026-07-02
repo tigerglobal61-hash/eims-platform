@@ -1,4 +1,4 @@
-import { getNodeMetrics, getNodeTrendData } from "./mockDashboardData";
+import { getNodeMetrics } from "./mockDashboardData";
 import { DUST_DISTRIBUTION } from "./mockData";
 
 const NODE_OFFSETS = {
@@ -95,7 +95,6 @@ export { noiseStatus, pmStatus };
 
 export function getNodeNoiseAnalysis(nodeId) {
   const metrics = getNodeMetrics(nodeId);
-  const trend = getNodeTrendData(nodeId);
   const lmax = withOffset(82.4, nodeId, 30);
   const peaks = PEAK_TIMES[nodeId] ?? PEAK_TIMES.T1;
 
@@ -119,7 +118,6 @@ export function getNodeNoiseAnalysis(nodeId) {
         limit: "Threshold 75 dB(A)",
       },
     ],
-    trend,
     nodeSummary: {
       nodeId,
       movingAverage: metrics.noise,
@@ -135,7 +133,6 @@ export function getNodeNoiseAnalysis(nodeId) {
 
 export function getNodeDustAnalysis(nodeId) {
   const metrics = getNodeMetrics(nodeId);
-  const trend = getNodeTrendData(nodeId);
   const peaks = PEAK_TIMES[nodeId] ?? PEAK_TIMES.T1;
   const pm25Max = withOffset(48, nodeId);
   const pm10Max = withOffset(168, nodeId);
@@ -177,7 +174,6 @@ export function getNodeDustAnalysis(nodeId) {
         limit: "Threshold 150 μg/m³",
       },
     ],
-    trend,
     distribution: DUST_DISTRIBUTION,
     nodeSummary: {
       nodeId,

@@ -9,6 +9,7 @@ import {
   pmStatus,
 } from "../data/mockAnalysisData";
 import { formatNodeLocation } from "../data/nodes";
+import useChartData from "../hooks/useChartData";
 
 function dustBarColor(entry) {
   const start = parseInt(entry.range.split("-")[0], 10);
@@ -24,6 +25,7 @@ export default function DustAnalysis({
   averageMinutes = 15,
 }) {
   const nodeData = useMemo(() => getNodeDustAnalysis(nodeId), [nodeId]);
+  const { data: trendData } = useChartData(nodeId);
   const kpis = useMemo(() => {
     if (!liveMetrics) {
       return nodeData.kpis;
@@ -81,7 +83,8 @@ export default function DustAnalysis({
           <span className="section-meta">PM2.5 / PM10 · {formatNodeLocation(nodeId)}</span>
         </div>
         <MultiLineChart
-          data={nodeData.trend}
+          data={trendData}
+          xKey="time"
           height={300}
           yLabel="μg/m³"
           lines={[

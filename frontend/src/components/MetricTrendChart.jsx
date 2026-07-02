@@ -9,6 +9,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { formatChartTimeLabel } from "../api/chart";
 import { CHART_COLORS } from "../data/mockData";
 import { THRESHOLD_KO, THRESHOLD_LINE_COLORS } from "../data/thresholds";
 
@@ -37,7 +38,7 @@ function ChartTooltip({ active, payload, label, unit }) {
 
   return (
     <div className="noise-chart-tooltip">
-      <span className="noise-chart-tooltip__time">{label}</span>
+      <span className="noise-chart-tooltip__time">{formatChartTimeLabel(label)}</span>
       <span className="noise-chart-tooltip__value">
         {payload[0].value} {unit}
       </span>
@@ -106,11 +107,12 @@ export default function MetricTrendChart({
         >
           <CartesianGrid stroke={CHART_COLORS.grid} strokeDasharray="4 4" vertical={false} />
           <XAxis
-            dataKey="hour"
+            dataKey="time"
             tick={{ fill: CHART_COLORS.axis, fontSize: 11 }}
             tickLine={false}
             axisLine={{ stroke: CHART_COLORS.grid }}
             interval={2}
+            tickFormatter={formatChartTimeLabel}
           />
           <YAxis
             domain={yAxisDomain}

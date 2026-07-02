@@ -2,24 +2,21 @@ import { useEffect, useMemo, useState } from "react";
 import MetricTrendChart from "../components/MetricTrendChart";
 import NodeSelect from "../components/NodeSelect";
 import StatusBadge from "../components/StatusBadge";
-import { fetchLatestAverage, mapLatestAvgToNodeMetrics } from "../api/latest";
 import { getNoaaWeather, getPrimaryAlert } from "../api/weather";
 import { CHART_COLORS, RECENT_ALERTS } from "../data/mockData";
 import {
   getNodeMetrics,
-  getNodeTrendData,
   getSiteAverageMetrics,
 } from "../data/mockDashboardData";
+import useChartData from "../hooks/useChartData";
 import { formatNodeLocation } from "../data/nodes";
 import {
   METRIC_THRESHOLDS,
   MOVING_AVERAGE_LABEL,
   getMetricStatus,
 } from "../data/thresholds";
-
 const KPI_ORDER = ["noise", "pm10", "pm25"];
 const ALERTS_REFRESH_MS = 5 * 60 * 1000;
-const T1_KPI_REFRESH_MS = 30 * 1000;
 
 const SITE_AVERAGE_NOTICE = {
   ko: "현장 대표값은 활성 노드별 15분 이동평균값의 평균입니다. 알림 및 기준 초과 판단은 각 노드별 15분 이동평균값을 기준으로 개별 판단합니다.",
@@ -42,15 +39,6 @@ function formatAlertExpires(isoString) {
 function formatForecastWind(period) {
   if (!period) return "—";
   return `${period.windDirection} ${period.windSpeed}`;
-}
-
-function formatT1UpdatedAt(date) {
-  return date.toLocaleTimeString("en-US", {
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: true,
-  });
 }
 
 function ForecastDay({ label, period }) {
@@ -116,74 +104,27 @@ function NoaaWeatherCard({ forecast, alerts, loading, error }) {
 
 export default function Dashboard() {
   const [selectedNodeId, setSelectedNodeId] = useState("T1");
-  const [t1Metrics, setT1Metrics] = useState(null);
-  const [t1UpdatedAt, setT1UpdatedAt] = useState(null);
   const [forecast, setForecast] = useState(null);
   const [alerts, setAlerts] = useState([]);
   const [weatherLoading, setWeatherLoading] = useState(true);
   const [weatherError, setWeatherError] = useState(false);
 
   const siteMetrics = useMemo(() => getSiteAverageMetrics(), []);
-  const nodeMetrics = useMemo(() => {
-    if (selectedNodeId === "T1") {
-      return t1Metrics ?? getNodeMetrics("T1");
-    }
-
-    return getNodeMetrics(selectedNodeId);
-  }, [selectedNodeId, t1Metrics]);
-  const trendData = useMemo(() => getNodeTrendData(selectedNodeId), [selectedNodeId]);
-
-  useEffect(() => {
-    if (selectedNodeId !== "T1") {
-      return undefined;
-    }
-
-    let cancelled = false;
-
-    async function loadT1Metrics() {
-      try {
-        const data = await fetchLatestAverage("T1", 15);
-        const metrics = mapLatestAvgToNodeMetrics(data);
-
-        if (!cancelled) {
-          if (metrics) {
-            setT1Metrics(metrics);
-            setT1UpdatedAt(new Date());
-          } else {
-            setT1Metrics(null);
-            setT1UpdatedAt(null);
-          }
-        }
-      } catch {
-        if (!cancelled) {
-          setT1Metrics(null);
-          setT1UpdatedAt(null);
-        }
-      }
-    }
-
-    loadT1Metrics();
-
-    const refreshTimer = window.setInterval(loadT1Metrics, T1_KPI_REFRESH_MS);
-
-    return () => {
-      cancelled = true;
-      window.clearInterval(refreshTimer);
-    };
-  }, [selectedNodeId]);
+  const nodeMetrics = useMemo(() => getNodeMetrics(selectedNodeId), [selectedNodeId]);
+  const { data: trendData } = useChartData(selectedNodeId);
 
   useEffect(() => {
     let cancelled = false;
-
+  
     async function loadWeather(showLoading = false) {
       if (showLoading) {
         setWeatherLoading(true);
       }
       setWeatherError(false);
-
+  
       try {
         const weather = await getNoaaWeather({ siteId: "HEP" });
-
+  
         if (!cancelled) {
           setForecast(weather.forecast);
           setAlerts(weather.alerts ?? []);
@@ -199,19 +140,20 @@ export default function Dashboard() {
         }
       }
     }
-
+  
     loadWeather(true);
-
+  
     const weatherTimer = window.setInterval(
       () => loadWeather(false),
-      ALERTS_REFRESH_MS,
+      ALERTS_REFRESH_MS
     );
-
+  
     return () => {
       cancelled = true;
       window.clearInterval(weatherTimer);
     };
   }, []);
+
 
   function renderKpiCards(metrics, labelKey) {
     return KPI_ORDER.map((metricKey) => {
@@ -308,12 +250,7 @@ export default function Dashboard() {
       <section className="dashboard-kpi-section">
         <div className="section-header">
           <h2 className="section-title">Selected Node</h2>
-          <span className="section-meta">
-            {MOVING_AVERAGE_LABEL}
-            {selectedNodeId === "T1" && t1UpdatedAt
-              ? ` · Updated: ${formatT1UpdatedAt(t1UpdatedAt)}`
-              : ""}
-          </span>
+          <span className="section-meta">{MOVING_AVERAGE_LABEL}</span>
         </div>
         <div className="dashboard-node-metrics">{renderKpiCards(nodeMetrics, "label")}</div>
       </section>

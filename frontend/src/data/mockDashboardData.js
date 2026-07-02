@@ -1,5 +1,4 @@
 import { NODE_LIST } from "./nodes";
-import { DUST_TREND_DATA, NOISE_TREND_DATA } from "./mockData";
 
 const BASE_NODE_METRICS = {
   T1: { noise: 65, pm10: 22, pm25: 11 },
@@ -60,15 +59,4 @@ export function getSiteAverageMetrics() {
     pm10: Math.round(totals.pm10 / count),
     pm25: Math.round(totals.pm25 / count),
   };
-}
-
-export function getNodeTrendData(nodeId) {
-  const offset = NODE_OFFSETS[nodeId] ?? 0;
-
-  return NOISE_TREND_DATA.map((point, index) => ({
-    hour: point.hour,
-    noise: withOffset(point.noise, offset, 30),
-    pm10: withOffset(DUST_TREND_DATA[index]?.pm10 ?? 20, offset),
-    pm25: withOffset(DUST_TREND_DATA[index]?.pm25 ?? 10, offset),
-  }));
 }

@@ -25,41 +25,15 @@ export const ROUTES = [
   },
 ];
 
-export const NOISE_TREND_DATA = [
-  { hour: "00:00", noise: 38 },
-  { hour: "01:00", noise: 36 },
-  { hour: "02:00", noise: 35 },
-  { hour: "03:00", noise: 34 },
-  { hour: "04:00", noise: 36 },
-  { hour: "05:00", noise: 40 },
-  { hour: "06:00", noise: 48 },
-  { hour: "07:00", noise: 55 },
-  { hour: "08:00", noise: 62 },
-  { hour: "09:00", noise: 65 },
-  { hour: "10:00", noise: 68 },
-  { hour: "11:00", noise: 70 },
-  { hour: "12:00", noise: 72 },
-  { hour: "13:00", noise: 71 },
-  { hour: "14:00", noise: 72 },
-  { hour: "15:00", noise: 69 },
-  { hour: "16:00", noise: 68 },
-  { hour: "17:00", noise: 65 },
-  { hour: "18:00", noise: 58 },
-  { hour: "19:00", noise: 52 },
-  { hour: "20:00", noise: 48 },
-  { hour: "21:00", noise: 45 },
-  { hour: "22:00", noise: 42 },
-  { hour: "23:00", noise: 40 },
+const ENV_HOUR_LABELS = [
+  "00:00", "01:00", "02:00", "03:00", "04:00", "05:00",
+  "06:00", "07:00", "08:00", "09:00", "10:00", "11:00",
+  "12:00", "13:00", "14:00", "15:00", "16:00", "17:00",
+  "18:00", "19:00", "20:00", "21:00", "22:00", "23:00",
 ];
 
-export const DUST_TREND_DATA = NOISE_TREND_DATA.map((row, i) => ({
-  hour: row.hour,
-  pm25: [8, 7, 6, 6, 7, 9, 11, 13, 14, 15, 16, 14, 13, 12, 12, 11, 10, 9, 8, 7, 7, 6, 6, 5][i],
-  pm10: [15, 14, 13, 12, 13, 16, 20, 22, 25, 26, 28, 24, 22, 21, 20, 19, 18, 16, 14, 13, 12, 11, 10, 9][i],
-}));
-
-export const ENV_TREND_DATA = NOISE_TREND_DATA.map((row, i) => ({
-  hour: row.hour,
+export const ENV_TREND_DATA = ENV_HOUR_LABELS.map((hour, i) => ({
+  hour,
   temp: [22, 21, 20, 19, 19, 20, 23, 25, 27, 28, 29, 30, 31, 30, 29, 28, 27, 26, 25, 24, 23, 22, 22, 21][i],
   humidity: [62, 64, 66, 68, 67, 65, 60, 55, 52, 50, 48, 46, 45, 47, 50, 53, 55, 58, 60, 61, 62, 63, 64, 65][i],
 }));
@@ -493,8 +467,8 @@ export const ENV_KPI = [
   { id: "comfort", label: "쾌적 지수", value: "72", unit: "점", status: "good", limit: "≥ 60 점" },
 ];
 
-export const ENV_WIND_DATA = NOISE_TREND_DATA.map((row, i) => ({
-  hour: row.hour,
+export const ENV_WIND_DATA = ENV_HOUR_LABELS.map((hour, i) => ({
+  hour,
   wind: [1.2, 1.0, 0.8, 0.7, 0.9, 1.1, 1.8, 2.2, 2.8, 3.1, 3.4, 3.0, 2.6, 2.4, 2.5, 2.8, 2.6, 2.2, 1.8, 1.5, 1.3, 1.2, 1.1, 1.0][i],
   gust: [2.0, 1.6, 1.4, 1.2, 1.5, 1.8, 2.8, 3.4, 4.2, 4.8, 5.1, 4.6, 4.0, 3.8, 3.9, 4.4, 4.1, 3.5, 2.9, 2.4, 2.1, 1.9, 1.7, 1.5][i],
 }));
@@ -506,8 +480,8 @@ export const ENV_ZONE_COMPARISON = [
   { zone: "구역 D", temp: 26.8, humidity: 58, wind: 1.9, comfort: 76, status: "good" },
 ];
 
-export const ENV_COMFORT_TREND = NOISE_TREND_DATA.map((row, i) => ({
-  hour: row.hour,
+export const ENV_COMFORT_TREND = ENV_HOUR_LABELS.map((hour, i) => ({
+  hour,
   comfort: [78, 79, 80, 81, 80, 78, 74, 70, 66, 64, 62, 60, 58, 59, 62, 65, 68, 70, 72, 74, 75, 76, 77, 78][i],
 }));
 
