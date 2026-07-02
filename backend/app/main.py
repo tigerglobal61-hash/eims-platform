@@ -1,5 +1,6 @@
 from datetime import datetime, timezone
 from typing import Optional
+from zoneinfo import ZoneInfo
 from app.auth.routes import router as auth_router
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -20,6 +21,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+SITE_TIMEZONE = ZoneInfo("America/Indiana/Indianapolis")
+DAILY_MAX_FIELDS = ("noise_dba", "pm25", "pm10")
 
 
 def get_influx_client():
@@ -316,6 +321,64 @@ def _round_chart_value(value):
 
 def _format_chart_time(dt):
     return dt.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def _flux_time(dt):
+    return dt.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def _empty_daily_max_entry():
+    return {"max": None, "time": None}
+
+
+@app.get("/api/v1/daily_max")
+def daily_max(device_id: str = "T1"):
+    now_site = datetime.now(SITE_TIMEZONE)
+    start_site = now_site.replace(hour=0, minute=0, second=0, microsecond=0)
+    start_utc = start_site.astimezone(timezone.utc)
+    start_time = _flux_time(start_utc)
+
+    query = f'''
+    from(bucket: "{INFLUX_BUCKET}")
+      |> range(start: time(v: "{start_time}"), stop: now())
+      |> filter(fn: (r) => r["_measurement"] == "sensor_data")
+      |> filter(fn: (r) => r["device_id"] == "{device_id}")
+      |> filter(fn: (r) =>
+        r["_field"] == "noise_dba" or
+        r["_field"] == "pm25" or
+        r["_field"] == "pm10"
+      )
+      |> group(columns: ["_field"])
+      |> sort(columns: ["_value"], desc: true)
+      |> limit(n: 1)
+    '''
+
+    result = {
+        "device_id": device_id,
+        "date": start_site.strftime("%Y-%m-%d"),
+        **{field: _empty_daily_max_entry() for field in DAILY_MAX_FIELDS},
+    }
+
+    with get_influx_client() as client:
+        query_api = client.query_api()
+        tables = query_api.query(query)
+
+        for table in tables:
+            for record in table.records:
+                field = record.get_field()
+                if field not in DAILY_MAX_FIELDS:
+                    continue
+
+                value = record.get_value()
+                if value is None:
+                    continue
+
+                result[field] = {
+                    "max": round(float(value), 2),
+                    "time": _format_chart_time(record.get_time()),
+                }
+
+    return result
 
 
 @app.get("/api/v1/chart")
