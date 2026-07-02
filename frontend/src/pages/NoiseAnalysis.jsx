@@ -7,6 +7,7 @@ import {
   getNodeNoiseAnalysis,
   noiseStatus,
 } from "../data/mockAnalysisData";
+import { formatPeakTime } from "../api/latest";
 import { formatNodeLocation } from "../data/nodes";
 import useChartData from "../hooks/useChartData";
 import { METRIC_THRESHOLDS } from "../data/thresholds";
@@ -19,28 +20,44 @@ export default function NoiseAnalysis({
   embedded = false,
   nodeId = "T1",
   liveMetrics = null,
+  dailyMax = null,
   averageMinutes = 15,
 }) {
   const nodeData = useMemo(() => getNodeNoiseAnalysis(nodeId), [nodeId]);
   const { data: trendData } = useChartData(nodeId);
   const kpis = useMemo(() => {
-    if (!liveMetrics) {
+    if (nodeId !== "T1") {
       return nodeData.kpis;
     }
 
     return nodeData.kpis.map((kpi) => {
-      if (kpi.id !== "ma") {
-        return kpi;
+      if (kpi.id === "ma") {
+        return {
+          ...kpi,
+          label: getAnalysisAverageKpiLabel(averageMinutes, "noise"),
+          value: liveMetrics ? String(liveMetrics.noise) : "—",
+          status: liveMetrics ? noiseStatus(liveMetrics.noise) : "good",
+        };
       }
 
-      return {
-        ...kpi,
-        label: getAnalysisAverageKpiLabel(averageMinutes, "noise"),
-        value: String(liveMetrics.noise),
-        status: noiseStatus(liveMetrics.noise),
-      };
+      if (kpi.id === "lmax") {
+        const maxData = dailyMax?.noise_dba;
+        const maxValue = maxData?.max;
+
+        return {
+          ...kpi,
+          value: typeof maxValue === "number" ? maxValue.toFixed(1) : "—",
+          peakTime:
+            typeof maxValue === "number"
+              ? formatPeakTime(maxData?.time)
+              : "—",
+          status: typeof maxValue === "number" ? noiseStatus(maxValue) : "good",
+        };
+      }
+
+      return kpi;
     });
-  }, [nodeData.kpis, liveMetrics, averageMinutes]);
+  }, [nodeData.kpis, liveMetrics, dailyMax, averageMinutes, nodeId]);
 
   const content = (
     <>

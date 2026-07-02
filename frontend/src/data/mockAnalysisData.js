@@ -14,7 +14,6 @@ const NODE_OFFSETS = {
 };
 
 const PEAK_TIMES = {
-  T1: { lmax: "13:55", pm25Max: "12:40", pm10Max: "13:10" },
   D1: { lmax: "14:25", pm25Max: "13:20", pm10Max: "13:40" },
   D2: { lmax: "14:10", pm25Max: "12:55", pm10Max: "13:05" },
   D3: { lmax: "13:48", pm25Max: "12:30", pm10Max: "12:50" },
@@ -95,8 +94,42 @@ export { noiseStatus, pmStatus };
 
 export function getNodeNoiseAnalysis(nodeId) {
   const metrics = getNodeMetrics(nodeId);
+
+  if (nodeId === "T1") {
+    return {
+      kpis: [
+        {
+          id: "ma",
+          label: "15-min Moving Average",
+          value: "—",
+          unit: "dB(A)",
+          status: "good",
+          limit: "Threshold 70 dB(A)",
+        },
+        {
+          id: "lmax",
+          label: "Lmax",
+          value: "—",
+          unit: "dB(A)",
+          status: "good",
+          limit: "Threshold 75 dB(A)",
+        },
+      ],
+      nodeSummary: {
+        nodeId,
+        movingAverage: metrics.noise,
+        lmax: "—",
+        l10: withOffset(71.4, nodeId, 30),
+        l50: withOffset(62.1, nodeId, 30),
+        l90: withOffset(54.8, nodeId, 30),
+        exceed: 0,
+        status: noiseStatus(metrics.noise),
+      },
+    };
+  }
+
   const lmax = withOffset(82.4, nodeId, 30);
-  const peaks = PEAK_TIMES[nodeId] ?? PEAK_TIMES.T1;
+  const peaks = PEAK_TIMES[nodeId] ?? PEAK_TIMES.D1;
 
   return {
     kpis: [
@@ -133,7 +166,56 @@ export function getNodeNoiseAnalysis(nodeId) {
 
 export function getNodeDustAnalysis(nodeId) {
   const metrics = getNodeMetrics(nodeId);
-  const peaks = PEAK_TIMES[nodeId] ?? PEAK_TIMES.T1;
+
+  if (nodeId === "T1") {
+    return {
+      kpis: [
+        {
+          id: "pm25_avg",
+          label: "PM2.5 Average",
+          value: "—",
+          unit: "μg/m³",
+          status: "good",
+          limit: "Threshold 35 μg/m³",
+        },
+        {
+          id: "pm10_avg",
+          label: "PM10 Average",
+          value: "—",
+          unit: "μg/m³",
+          status: "good",
+          limit: "Threshold 150 μg/m³",
+        },
+        {
+          id: "pm25_max",
+          label: "PM2.5 Max",
+          value: "—",
+          unit: "μg/m³",
+          status: "good",
+          limit: "Threshold 35 μg/m³",
+        },
+        {
+          id: "pm10_max",
+          label: "PM10 Max",
+          value: "—",
+          unit: "μg/m³",
+          status: "good",
+          limit: "Threshold 150 μg/m³",
+        },
+      ],
+      distribution: DUST_DISTRIBUTION,
+      nodeSummary: {
+        nodeId,
+        pm25: metrics.pm25,
+        pm10: metrics.pm10,
+        pm25Max: "—",
+        pm10Max: "—",
+        status: pmStatus(metrics.pm10, 150, 160, 170),
+      },
+    };
+  }
+
+  const peaks = PEAK_TIMES[nodeId] ?? PEAK_TIMES.D1;
   const pm25Max = withOffset(48, nodeId);
   const pm10Max = withOffset(168, nodeId);
 

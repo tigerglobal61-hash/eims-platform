@@ -2,6 +2,11 @@ import { useEffect, useMemo, useState } from "react";
 import MetricTrendChart from "../components/MetricTrendChart";
 import NodeSelect from "../components/NodeSelect";
 import StatusBadge from "../components/StatusBadge";
+import {
+  KPI_REFRESH_MS,
+  fetchLatestAverage,
+  mapLatestAvgToNodeMetrics,
+} from "../api/latest";
 import { getNoaaWeather, getPrimaryAlert } from "../api/weather";
 import { CHART_COLORS, RECENT_ALERTS } from "../data/mockData";
 import {
@@ -108,10 +113,47 @@ export default function Dashboard() {
   const [alerts, setAlerts] = useState([]);
   const [weatherLoading, setWeatherLoading] = useState(true);
   const [weatherError, setWeatherError] = useState(false);
+  const [t1NodeMetrics, setT1NodeMetrics] = useState(null);
 
   const siteMetrics = useMemo(() => getSiteAverageMetrics(), []);
-  const nodeMetrics = useMemo(() => getNodeMetrics(selectedNodeId), [selectedNodeId]);
+  const nodeMetrics = useMemo(() => {
+    if (selectedNodeId === "T1") {
+      return t1NodeMetrics ?? { noise: "—", pm10: "—", pm25: "—" };
+    }
+
+    return getNodeMetrics(selectedNodeId);
+  }, [selectedNodeId, t1NodeMetrics]);
   const { data: trendData } = useChartData(selectedNodeId);
+
+  useEffect(() => {
+    if (selectedNodeId !== "T1") {
+      return undefined;
+    }
+
+    let cancelled = false;
+
+    async function loadT1NodeMetrics() {
+      try {
+        const data = await fetchLatestAverage("T1", 15);
+        const metrics = mapLatestAvgToNodeMetrics(data);
+
+        if (!cancelled && metrics) {
+          setT1NodeMetrics(metrics);
+        }
+      } catch {
+        // Keep previously displayed values on failure.
+      }
+    }
+
+    loadT1NodeMetrics();
+
+    const timer = window.setInterval(loadT1NodeMetrics, KPI_REFRESH_MS);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [selectedNodeId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -159,7 +201,8 @@ export default function Dashboard() {
     return KPI_ORDER.map((metricKey) => {
       const config = METRIC_THRESHOLDS[metricKey];
       const value = metrics[metricKey];
-      const status = getMetricStatus(value, metricKey);
+      const status =
+        typeof value === "number" ? getMetricStatus(value, metricKey) : "good";
 
       return (
         <article key={`${labelKey}-${metricKey}`} className={`kpi-card kpi-card--${status}`}>

@@ -8,6 +8,7 @@ import {
   getNodeDustAnalysis,
   pmStatus,
 } from "../data/mockAnalysisData";
+import { formatPeakTime } from "../api/latest";
 import { formatNodeLocation } from "../data/nodes";
 import useChartData from "../hooks/useChartData";
 
@@ -22,12 +23,13 @@ export default function DustAnalysis({
   embedded = false,
   nodeId = "T1",
   liveMetrics = null,
+  dailyMax = null,
   averageMinutes = 15,
 }) {
   const nodeData = useMemo(() => getNodeDustAnalysis(nodeId), [nodeId]);
   const { data: trendData } = useChartData(nodeId);
   const kpis = useMemo(() => {
-    if (!liveMetrics) {
+    if (nodeId !== "T1") {
       return nodeData.kpis;
     }
 
@@ -36,8 +38,10 @@ export default function DustAnalysis({
         return {
           ...kpi,
           label: getAnalysisAverageKpiLabel(averageMinutes, "pm25"),
-          value: String(liveMetrics.pm25),
-          status: pmStatus(liveMetrics.pm25, 35, 45, 55),
+          value: liveMetrics ? String(liveMetrics.pm25) : "—",
+          status: liveMetrics
+            ? pmStatus(liveMetrics.pm25, 35, 45, 55)
+            : "good",
         };
       }
 
@@ -45,14 +49,50 @@ export default function DustAnalysis({
         return {
           ...kpi,
           label: getAnalysisAverageKpiLabel(averageMinutes, "pm10"),
-          value: String(liveMetrics.pm10),
-          status: pmStatus(liveMetrics.pm10, 150, 160, 170),
+          value: liveMetrics ? String(liveMetrics.pm10) : "—",
+          status: liveMetrics
+            ? pmStatus(liveMetrics.pm10, 150, 160, 170)
+            : "good",
+        };
+      }
+
+      if (kpi.id === "pm25_max") {
+        const maxData = dailyMax?.pm25;
+        const maxValue = maxData?.max;
+
+        return {
+          ...kpi,
+          value: typeof maxValue === "number" ? maxValue.toFixed(1) : "—",
+          peakTime:
+            typeof maxValue === "number"
+              ? formatPeakTime(maxData?.time)
+              : "—",
+          status: typeof maxValue === "number"
+            ? pmStatus(maxValue, 35, 45, 55)
+            : "good",
+        };
+      }
+
+      if (kpi.id === "pm10_max") {
+        const maxData = dailyMax?.pm10;
+        const maxValue = maxData?.max;
+
+        return {
+          ...kpi,
+          value: typeof maxValue === "number" ? maxValue.toFixed(1) : "—",
+          peakTime:
+            typeof maxValue === "number"
+              ? formatPeakTime(maxData?.time)
+              : "—",
+          status: typeof maxValue === "number"
+            ? pmStatus(maxValue, 150, 160, 170)
+            : "good",
         };
       }
 
       return kpi;
     });
-  }, [nodeData.kpis, liveMetrics, averageMinutes]);
+  }, [nodeData.kpis, liveMetrics, dailyMax, averageMinutes, nodeId]);
 
   const content = (
     <>

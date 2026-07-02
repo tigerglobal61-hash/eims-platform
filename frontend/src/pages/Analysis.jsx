@@ -1,13 +1,17 @@
 import { useEffect, useMemo, useState } from "react";
 import FilterChips from "../components/FilterChips";
 import NodeSelect from "../components/NodeSelect";
-import { fetchLatestAverage, mapLatestAvgToNodeMetrics } from "../api/latest";
+import {
+  KPI_REFRESH_MS,
+  fetchDailyMax,
+  fetchLatestAverage,
+  mapLatestAvgToNodeMetrics,
+} from "../api/latest";
 import {
   ANALYSIS_AVERAGE_WINDOW_MINUTES,
   ANALYSIS_AVERAGE_WINDOW_OPTIONS,
   getAnalysisAverageWindowLabel,
 } from "../data/mockAnalysisData";
-import { getNodeMetrics } from "../data/mockDashboardData";
 import { formatNodeLocation } from "../data/nodes";
 import DustAnalysis from "./DustAnalysis";
 import NoiseAnalysis from "./NoiseAnalysis";
@@ -27,35 +31,48 @@ export default function Analysis() {
   const [activeTab, setActiveTab] = useState("noise");
   const [averageMinutes, setAverageMinutes] = useState(15);
   const [t1Metrics, setT1Metrics] = useState(null);
+  const [t1DailyMax, setT1DailyMax] = useState(null);
   const ActivePanel = TAB_CONTENT[activeTab];
 
   useEffect(() => {
     if (selectedNodeId !== "T1") {
       setT1Metrics(null);
+      setT1DailyMax(null);
       return undefined;
     }
 
     let cancelled = false;
 
-    async function loadT1Metrics() {
+    async function loadT1KpiData() {
       try {
-        const data = await fetchLatestAverage("T1", averageMinutes);
-        const metrics = mapLatestAvgToNodeMetrics(data);
+        const avgData = await fetchLatestAverage("T1", averageMinutes);
+        const metrics = mapLatestAvgToNodeMetrics(avgData);
 
-        if (!cancelled) {
-          setT1Metrics(metrics ?? null);
+        if (!cancelled && metrics) {
+          setT1Metrics(metrics);
         }
       } catch {
+        // Keep previously displayed values on failure.
+      }
+
+      try {
+        const maxData = await fetchDailyMax("T1");
+
         if (!cancelled) {
-          setT1Metrics(null);
+          setT1DailyMax(maxData);
         }
+      } catch {
+        // Keep previously displayed values on failure.
       }
     }
 
-    loadT1Metrics();
+    loadT1KpiData();
+
+    const timer = window.setInterval(loadT1KpiData, KPI_REFRESH_MS);
 
     return () => {
       cancelled = true;
+      window.clearInterval(timer);
     };
   }, [selectedNodeId, averageMinutes]);
 
@@ -67,10 +84,13 @@ export default function Analysis() {
     return t1Metrics ?? null;
   }, [selectedNodeId, t1Metrics]);
 
-  const fallbackMetrics = useMemo(
-    () => (selectedNodeId === "T1" && !t1Metrics ? getNodeMetrics("T1") : null),
-    [selectedNodeId, t1Metrics],
-  );
+  const dailyMax = useMemo(() => {
+    if (selectedNodeId !== "T1") {
+      return null;
+    }
+
+    return t1DailyMax;
+  }, [selectedNodeId, t1DailyMax]);
 
   return (
     <div className="page-shell analysis-page">
@@ -108,7 +128,8 @@ export default function Analysis() {
       <ActivePanel
         embedded
         nodeId={selectedNodeId}
-        liveMetrics={liveMetrics ?? fallbackMetrics}
+        liveMetrics={liveMetrics}
+        dailyMax={dailyMax}
         averageMinutes={averageMinutes}
         key={`${activeTab}-${selectedNodeId}-${averageMinutes}`}
       />

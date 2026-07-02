@@ -16,7 +16,9 @@
 const API_BASE_URL =
   import.meta.env.VITE_API_URL || "https://eims-api.onrender.com";
 
+export const KPI_REFRESH_MS = 30 * 1000;
 const MOCK_DELAY_MS = 300;
+const SITE_TIMEZONE = "America/Indiana/Indianapolis";
 
 export const mockLatestData = {
   T1: {
@@ -138,6 +140,46 @@ export async function fetchLatestAverage(deviceId, minutes = 15) {
   }
 
   return response.json();
+}
+
+/**
+ * Client for GET /api/v1/daily_max?device_id={deviceId}
+ *
+ * Expected response:
+ * {
+ *   "device_id": "T1",
+ *   "date": "2026-07-02",
+ *   "noise_dba": { "max": 82.4, "time": "2026-07-02T13:55:00Z" },
+ *   "pm25": { "max": 48.0, "time": "2026-07-02T12:40:00Z" },
+ *   "pm10": { "max": 168.0, "time": "2026-07-02T13:10:00Z" }
+ * }
+ */
+export async function fetchDailyMax(deviceId = "T1") {
+  const response = await fetch(
+    `${API_BASE_URL}/api/v1/daily_max?device_id=${encodeURIComponent(deviceId)}`,
+  );
+
+  if (!response.ok) {
+    throw new Error(`Daily max API failed (${response.status})`);
+  }
+
+  return response.json();
+}
+
+export function formatPeakTime(isoString) {
+  if (!isoString) return "—";
+
+  const date = new Date(isoString);
+  if (Number.isNaN(date.getTime())) {
+    return "—";
+  }
+
+  return date.toLocaleTimeString("en-US", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+    timeZone: SITE_TIMEZONE,
+  });
 }
 
 export async function fetchLatestReading(deviceId) {
