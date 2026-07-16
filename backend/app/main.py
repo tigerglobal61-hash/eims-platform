@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from typing import Optional
 from zoneinfo import ZoneInfo
 from app.auth.routes import router as auth_router
-from fastapi import FastAPI
+from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
 from influxdb_client import InfluxDBClient, Point
 from pydantic import BaseModel
@@ -25,6 +25,9 @@ app.add_middleware(
 
 SITE_TIMEZONE = ZoneInfo("America/Indiana/Indianapolis")
 DAILY_MAX_FIELDS = ("noise_dba", "pm25", "pm10")
+SITE_DEVICE_IDS = ("D1", "D2", "D3", "D4", "D5", "D6", "D7", "D8")
+SITE_AVG_FIELDS = ("noise_dba", "pm25", "pm10")
+DEFAULT_SITE_ID = "HEP"
 
 
 def get_influx_client():
@@ -311,6 +314,86 @@ def latest_avg(device_id: str = "T1", minutes: int = 15):
 
     result["time"] = datetime.now(timezone.utc).isoformat()
     return result
+
+
+def _build_device_id_filter(device_ids):
+    return " or ".join(f'r["device_id"] == "{device_id}"' for device_id in device_ids)
+
+
+def _empty_site_avg_metric():
+    return {"avg": None, "max": None}
+
+
+def _aggregate_site_metric(device_metrics, active_device_ids, field):
+    device_avgs = [
+        device_metrics[device_id][field]
+        for device_id in active_device_ids
+        if field in device_metrics[device_id]
+    ]
+
+    if not device_avgs:
+        return _empty_site_avg_metric()
+
+    return {
+        "avg": round(sum(device_avgs) / len(device_avgs), 2),
+        "max": round(max(device_avgs), 2),
+    }
+
+
+@app.get("/api/v1/site_avg")
+def site_avg(minutes: int = Query(15, ge=1, le=1440)):
+    device_filter = _build_device_id_filter(SITE_DEVICE_IDS)
+    query = f'''
+    from(bucket: "{INFLUX_BUCKET}")
+      |> range(start: -{minutes}m)
+      |> filter(fn: (r) => r["_measurement"] == "sensor_data")
+      |> filter(fn: (r) => {device_filter})
+      |> filter(fn: (r) =>
+        r["_field"] == "noise_dba" or
+        r["_field"] == "pm25" or
+        r["_field"] == "pm10"
+      )
+      |> group(columns: ["device_id", "_field"])
+      |> mean()
+    '''
+
+    device_metrics = {device_id: {} for device_id in SITE_DEVICE_IDS}
+
+    with get_influx_client() as client:
+        query_api = client.query_api()
+        tables = query_api.query(query)
+
+        for table in tables:
+            for record in table.records:
+                device_id = record.values.get("device_id")
+                if device_id not in device_metrics:
+                    continue
+
+                value = record.get_value()
+                if value is None:
+                    continue
+
+                device_metrics[device_id][record.get_field()] = float(value)
+
+    active_device_ids = [
+        device_id
+        for device_id in SITE_DEVICE_IDS
+        if device_metrics[device_id]
+    ]
+
+    return {
+        "site_id": DEFAULT_SITE_ID,
+        "window_minutes": minutes,
+        "device_count": len(SITE_DEVICE_IDS),
+        "active_devices": len(active_device_ids),
+        "active_device_ids": active_device_ids,
+        "noise_dba": _aggregate_site_metric(
+            device_metrics, active_device_ids, "noise_dba"
+        ),
+        "pm25": _aggregate_site_metric(device_metrics, active_device_ids, "pm25"),
+        "pm10": _aggregate_site_metric(device_metrics, active_device_ids, "pm10"),
+        "time": datetime.now(timezone.utc).isoformat(),
+    }
 
 
 def _round_chart_value(value):
