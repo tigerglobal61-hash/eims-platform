@@ -16,48 +16,95 @@ function isOverThreshold(value, threshold = 70) {
   return value > threshold;
 }
 
+function resolveLiveValue({ loading, error, noData, value, formatValue, getStatus }) {
+  if (loading) {
+    return { value: "—", status: "good", dataStatus: null };
+  }
+
+  if (error) {
+    return { value: "—", status: "good", dataStatus: "Unable to load" };
+  }
+
+  if (noData || typeof value !== "number" || Number.isNaN(value)) {
+    return { value: "—", status: "good", dataStatus: "No data" };
+  }
+
+  return {
+    value: formatValue(value),
+    status: getStatus(value),
+    dataStatus: null,
+  };
+}
+
 export default function NoiseAnalysis({
   embedded = false,
-  nodeId = "T1",
+  nodeId = "D1",
   liveMetrics = null,
   dailyMax = null,
   averageMinutes = 15,
+  loading = false,
+  liveMetricsError = false,
+  dailyMaxError = false,
+  liveMetricsNoData = false,
+  dailyMaxNoData = false,
 }) {
   const nodeData = useMemo(() => getNodeNoiseAnalysis(nodeId), [nodeId]);
   const { data: trendData } = useChartData(nodeId);
+
   const kpis = useMemo(() => {
-    if (nodeId !== "T1") {
-      return nodeData.kpis;
-    }
-
-    return nodeData.kpis.map((kpi) => {
-      if (kpi.id === "ma") {
-        return {
-          ...kpi,
-          label: getAnalysisAverageKpiLabel(averageMinutes, "noise"),
-          value: liveMetrics ? String(liveMetrics.noise) : "—",
-          status: liveMetrics ? noiseStatus(liveMetrics.noise) : "good",
-        };
-      }
-
-      if (kpi.id === "lmax") {
-        const maxData = dailyMax?.noise_dba;
-        const maxValue = maxData?.max;
-
-        return {
-          ...kpi,
-          value: typeof maxValue === "number" ? maxValue.toFixed(1) : "—",
-          peakTime:
-            typeof maxValue === "number"
-              ? formatPeakTime(maxData?.time)
-              : "—",
-          status: typeof maxValue === "number" ? noiseStatus(maxValue) : "good",
-        };
-      }
-
-      return kpi;
+    const movingAverage = resolveLiveValue({
+      loading,
+      error: liveMetricsError,
+      noData: liveMetricsNoData,
+      value: liveMetrics?.noise,
+      formatValue: (value) => String(value),
+      getStatus: noiseStatus,
     });
-  }, [nodeData.kpis, liveMetrics, dailyMax, averageMinutes, nodeId]);
+
+    const lmaxData = dailyMax?.noise_dba;
+    const lmaxValue = lmaxData?.max;
+    const lmax = resolveLiveValue({
+      loading,
+      error: dailyMaxError,
+      noData: dailyMaxNoData || typeof lmaxValue !== "number" || Number.isNaN(lmaxValue),
+      value: lmaxValue,
+      formatValue: (value) => value.toFixed(1),
+      getStatus: noiseStatus,
+    });
+
+    return [
+      {
+        id: "ma",
+        label: getAnalysisAverageKpiLabel(averageMinutes, "noise"),
+        unit: "dB(A)",
+        limit: "Threshold 70 dB(A)",
+        ...movingAverage,
+      },
+      {
+        id: "lmax",
+        label: "Lmax",
+        unit: "dB(A)",
+        limit: "Threshold 75 dB(A)",
+        peakTime:
+          !loading &&
+          !dailyMaxError &&
+          !dailyMaxNoData &&
+          typeof lmaxValue === "number"
+            ? formatPeakTime(lmaxData?.time)
+            : null,
+        ...lmax,
+      },
+    ];
+  }, [
+    loading,
+    liveMetrics,
+    dailyMax,
+    averageMinutes,
+    liveMetricsError,
+    dailyMaxError,
+    liveMetricsNoData,
+    dailyMaxNoData,
+  ]);
 
   const content = (
     <>
@@ -69,6 +116,9 @@ export default function NoiseAnalysis({
                 <span className="na-kpi-card__label">{kpi.label}</span>
                 {kpi.peakTime && (
                   <span className="na-kpi-card__desc">발생시간 {kpi.peakTime}</span>
+                )}
+                {kpi.dataStatus && (
+                  <span className="na-kpi-card__desc">{kpi.dataStatus}</span>
                 )}
               </div>
               <StatusBadge status={kpi.status} />

@@ -143,6 +143,48 @@ export async function fetchLatestAverage(deviceId, minutes = 15) {
 }
 
 /**
+ * Client for GET /api/v1/site_avg?minutes={minutes}
+ *
+ * Expected response:
+ * {
+ *   "noise_dba": { "avg": 33.84, "max": 35.39 },
+ *   "pm25": { "avg": 7.18, "max": 8.13 },
+ *   "pm10": { "avg": 20.17, "max": 23.58 }
+ * }
+ */
+export function mapSiteAverageToNodeMetrics(data) {
+  const noise = data?.noise_dba?.avg;
+  const pm10 = data?.pm10?.avg;
+  const pm25 = data?.pm25?.avg;
+
+  if (
+    [noise, pm10, pm25].some(
+      (value) => typeof value !== "number" || Number.isNaN(value),
+    )
+  ) {
+    return null;
+  }
+
+  return {
+    noise: Math.round(noise * 10) / 10,
+    pm10: Math.round(pm10 * 10) / 10,
+    pm25: Math.round(pm25 * 10) / 10,
+  };
+}
+
+export async function fetchSiteAverage(minutes = 15) {
+  const response = await fetch(
+    `${API_BASE_URL}/api/v1/site_avg?minutes=${minutes}`,
+  );
+
+  if (!response.ok) {
+    throw new Error(`Site average API failed (${response.status})`);
+  }
+
+  return response.json();
+}
+
+/**
  * Client for GET /api/v1/daily_max?device_id={deviceId}
  *
  * Expected response:

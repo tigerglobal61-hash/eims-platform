@@ -1,18 +1,16 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import MetricTrendChart from "../components/MetricTrendChart";
 import NodeSelect from "../components/NodeSelect";
 import StatusBadge from "../components/StatusBadge";
 import {
   KPI_REFRESH_MS,
   fetchLatestAverage,
+  fetchSiteAverage,
   mapLatestAvgToNodeMetrics,
+  mapSiteAverageToNodeMetrics,
 } from "../api/latest";
 import { getNoaaWeather, getPrimaryAlert } from "../api/weather";
-import { CHART_COLORS, RECENT_ALERTS } from "../data/mockData";
-import {
-  getNodeMetrics,
-  getSiteAverageMetrics,
-} from "../data/mockDashboardData";
+import { CHART_COLORS } from "../data/mockData";
 import useChartData from "../hooks/useChartData";
 import { formatNodeLocation } from "../data/nodes";
 import {
@@ -20,6 +18,14 @@ import {
   MOVING_AVERAGE_LABEL,
   getMetricStatus,
 } from "../data/thresholds";
+const KPI_PLACEHOLDERS = { noise: "—", pm10: "—", pm25: "—" };
+
+function getKpiLoadMeta(loading, error, metrics) {
+  if (loading) return null;
+  if (error) return "Unable to load";
+  if (!metrics) return "No data";
+  return null;
+}
 const KPI_ORDER = ["noise", "pm10", "pm25"];
 const ALERTS_REFRESH_MS = 5 * 60 * 1000;
 
@@ -108,46 +114,100 @@ function NoaaWeatherCard({ forecast, alerts, loading, error }) {
 }
 
 export default function Dashboard() {
-  const [selectedNodeId, setSelectedNodeId] = useState("T1");
+  const [selectedNodeId, setSelectedNodeId] = useState("D1");
   const [forecast, setForecast] = useState(null);
   const [alerts, setAlerts] = useState([]);
   const [weatherLoading, setWeatherLoading] = useState(true);
   const [weatherError, setWeatherError] = useState(false);
-  const [t1NodeMetrics, setT1NodeMetrics] = useState(null);
+  const [nodeMetrics, setNodeMetrics] = useState(null);
+  const [siteMetrics, setSiteMetrics] = useState(null);
+  const [nodeLoading, setNodeLoading] = useState(true);
+  const [siteLoading, setSiteLoading] = useState(true);
+  const [nodeError, setNodeError] = useState(false);
+  const [siteError, setSiteError] = useState(false);
 
-  const siteMetrics = useMemo(() => getSiteAverageMetrics(), []);
-  const nodeMetrics = useMemo(() => {
-    if (selectedNodeId === "T1") {
-      return t1NodeMetrics ?? { noise: "—", pm10: "—", pm25: "—" };
-    }
-
-    return getNodeMetrics(selectedNodeId);
-  }, [selectedNodeId, t1NodeMetrics]);
+  const displayedSiteMetrics = siteMetrics ?? KPI_PLACEHOLDERS;
+  const selectedNodeMetrics = nodeMetrics ?? KPI_PLACEHOLDERS;
+  const siteLoadMeta = getKpiLoadMeta(siteLoading, siteError, siteMetrics);
+  const nodeLoadMeta = getKpiLoadMeta(nodeLoading, nodeError, nodeMetrics);
   const { data: trendData } = useChartData(selectedNodeId);
 
-  useEffect(() => {
-    if (selectedNodeId !== "T1") {
-      return undefined;
-    }
+  function handleNodeChange(nodeId) {
+    setNodeMetrics(null);
+    setNodeLoading(true);
+    setNodeError(false);
+    setSelectedNodeId(nodeId);
+  }
 
+  useEffect(() => {
     let cancelled = false;
 
-    async function loadT1NodeMetrics() {
-      try {
-        const data = await fetchLatestAverage("T1", 15);
-        const metrics = mapLatestAvgToNodeMetrics(data);
+    async function loadSiteMetrics(isBackgroundRefresh = false) {
+      if (!isBackgroundRefresh) {
+        setSiteLoading(true);
+      }
 
-        if (!cancelled && metrics) {
-          setT1NodeMetrics(metrics);
+      try {
+        const data = await fetchSiteAverage(15);
+        const metrics = mapSiteAverageToNodeMetrics(data);
+
+        if (!cancelled) {
+          setSiteMetrics(metrics);
+          setSiteError(false);
         }
       } catch {
-        // Keep previously displayed values on failure.
+        if (!cancelled) {
+          setSiteMetrics(null);
+          setSiteError(true);
+        }
+      } finally {
+        if (!cancelled) {
+          setSiteLoading(false);
+        }
       }
     }
 
-    loadT1NodeMetrics();
+    loadSiteMetrics();
 
-    const timer = window.setInterval(loadT1NodeMetrics, KPI_REFRESH_MS);
+    const timer = window.setInterval(() => loadSiteMetrics(true), KPI_REFRESH_MS);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadNodeMetrics(isBackgroundRefresh = false) {
+      if (!isBackgroundRefresh) {
+        setNodeLoading(true);
+      }
+
+      try {
+        const data = await fetchLatestAverage(selectedNodeId, 15);
+        const metrics = mapLatestAvgToNodeMetrics(data);
+
+        if (!cancelled) {
+          setNodeMetrics(metrics);
+          setNodeError(false);
+        }
+      } catch {
+        if (!cancelled) {
+          setNodeMetrics(null);
+          setNodeError(true);
+        }
+      } finally {
+        if (!cancelled) {
+          setNodeLoading(false);
+        }
+      }
+    }
+
+    loadNodeMetrics();
+
+    const timer = window.setInterval(() => loadNodeMetrics(true), KPI_REFRESH_MS);
 
     return () => {
       cancelled = true;
@@ -197,6 +257,14 @@ export default function Dashboard() {
   }, []);
 
 
+  function renderKpiSectionMeta(loadMeta) {
+    if (!loadMeta) {
+      return MOVING_AVERAGE_LABEL;
+    }
+
+    return `${MOVING_AVERAGE_LABEL} · ${loadMeta}`;
+  }
+
   function renderKpiCards(metrics, labelKey) {
     return KPI_ORDER.map((metricKey) => {
       const config = METRIC_THRESHOLDS[metricKey];
@@ -232,9 +300,9 @@ export default function Dashboard() {
           <section className="dashboard-kpi-section">
             <div className="section-header">
               <h2 className="section-title">Site Average</h2>
-              <span className="section-meta">{MOVING_AVERAGE_LABEL}</span>
+              <span className="section-meta">{renderKpiSectionMeta(siteLoadMeta)}</span>
             </div>
-            <div className="dashboard-node-metrics">{renderKpiCards(siteMetrics, "siteLabel")}</div>
+            <div className="dashboard-node-metrics">{renderKpiCards(displayedSiteMetrics, "siteLabel")}</div>
           </section>
         </div>
 
@@ -251,33 +319,10 @@ export default function Dashboard() {
       <section className="panel panel--table dashboard-alerts-wide">
         <div className="section-header">
           <h2 className="section-title">Recent Alerts</h2>
-          <span className="section-meta">{RECENT_ALERTS.length} items</span>
         </div>
         <div className="table-wrap dashboard-alerts-wide__scroll">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Time</th>
-                <th>Node</th>
-                <th>Type</th>
-                <th>Message</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {RECENT_ALERTS.map((alert) => (
-                <tr key={alert.id}>
-                  <td>{alert.time}</td>
-                  <td>{alert.node}</td>
-                  <td>{alert.type}</td>
-                  <td>{alert.message}</td>
-                  <td>
-                    <StatusBadge status={alert.level} />
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <p className="dashboard-notice__text">No recent alerts</p>
+          <p className="dashboard-notice__subtext">No alerts have been recorded.</p>
         </div>
       </section>
 
@@ -285,7 +330,7 @@ export default function Dashboard() {
         <NodeSelect
           id="dashboard-node-select"
           value={selectedNodeId}
-          onChange={setSelectedNodeId}
+          onChange={handleNodeChange}
           meta={formatNodeLocation(selectedNodeId)}
         />
       </section>
@@ -293,9 +338,9 @@ export default function Dashboard() {
       <section className="dashboard-kpi-section">
         <div className="section-header">
           <h2 className="section-title">Selected Node</h2>
-          <span className="section-meta">{MOVING_AVERAGE_LABEL}</span>
+          <span className="section-meta">{renderKpiSectionMeta(nodeLoadMeta)}</span>
         </div>
-        <div className="dashboard-node-metrics">{renderKpiCards(nodeMetrics, "label")}</div>
+        <div className="dashboard-node-metrics">{renderKpiCards(selectedNodeMetrics, "label")}</div>
       </section>
 
       <div className="dashboard-charts-stack">

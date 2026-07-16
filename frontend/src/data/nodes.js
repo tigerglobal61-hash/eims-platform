@@ -1,5 +1,4 @@
 export const NODE_LIST = [
-  { id: "T1", label: "Temporary Node" },
   { id: "D1", label: "West Side North" },
   { id: "D2", label: "West Side South" },
   { id: "D3", label: "Southwest" },

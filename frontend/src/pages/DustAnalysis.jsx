@@ -19,80 +19,136 @@ function dustBarColor(entry) {
   return CHART_COLORS.line;
 }
 
+function resolveLiveValue({ loading, error, noData, value, formatValue, getStatus }) {
+  if (loading) {
+    return { value: "—", status: "good", dataStatus: null };
+  }
+
+  if (error) {
+    return { value: "—", status: "good", dataStatus: "Unable to load" };
+  }
+
+  if (noData || typeof value !== "number" || Number.isNaN(value)) {
+    return { value: "—", status: "good", dataStatus: "No data" };
+  }
+
+  return {
+    value: formatValue(value),
+    status: getStatus(value),
+    dataStatus: null,
+  };
+}
+
 export default function DustAnalysis({
   embedded = false,
-  nodeId = "T1",
+  nodeId = "D1",
   liveMetrics = null,
   dailyMax = null,
   averageMinutes = 15,
+  loading = false,
+  liveMetricsError = false,
+  dailyMaxError = false,
+  liveMetricsNoData = false,
+  dailyMaxNoData = false,
 }) {
   const nodeData = useMemo(() => getNodeDustAnalysis(nodeId), [nodeId]);
   const { data: trendData } = useChartData(nodeId);
+
   const kpis = useMemo(() => {
-    if (nodeId !== "T1") {
-      return nodeData.kpis;
-    }
-
-    return nodeData.kpis.map((kpi) => {
-      if (kpi.id === "pm25_avg") {
-        return {
-          ...kpi,
-          label: getAnalysisAverageKpiLabel(averageMinutes, "pm25"),
-          value: liveMetrics ? String(liveMetrics.pm25) : "—",
-          status: liveMetrics
-            ? pmStatus(liveMetrics.pm25, 35, 45, 55)
-            : "good",
-        };
-      }
-
-      if (kpi.id === "pm10_avg") {
-        return {
-          ...kpi,
-          label: getAnalysisAverageKpiLabel(averageMinutes, "pm10"),
-          value: liveMetrics ? String(liveMetrics.pm10) : "—",
-          status: liveMetrics
-            ? pmStatus(liveMetrics.pm10, 150, 160, 170)
-            : "good",
-        };
-      }
-
-      if (kpi.id === "pm25_max") {
-        const maxData = dailyMax?.pm25;
-        const maxValue = maxData?.max;
-
-        return {
-          ...kpi,
-          value: typeof maxValue === "number" ? maxValue.toFixed(1) : "—",
-          peakTime:
-            typeof maxValue === "number"
-              ? formatPeakTime(maxData?.time)
-              : "—",
-          status: typeof maxValue === "number"
-            ? pmStatus(maxValue, 35, 45, 55)
-            : "good",
-        };
-      }
-
-      if (kpi.id === "pm10_max") {
-        const maxData = dailyMax?.pm10;
-        const maxValue = maxData?.max;
-
-        return {
-          ...kpi,
-          value: typeof maxValue === "number" ? maxValue.toFixed(1) : "—",
-          peakTime:
-            typeof maxValue === "number"
-              ? formatPeakTime(maxData?.time)
-              : "—",
-          status: typeof maxValue === "number"
-            ? pmStatus(maxValue, 150, 160, 170)
-            : "good",
-        };
-      }
-
-      return kpi;
+    const pm25Average = resolveLiveValue({
+      loading,
+      error: liveMetricsError,
+      noData: liveMetricsNoData,
+      value: liveMetrics?.pm25,
+      formatValue: (value) => String(value),
+      getStatus: (value) => pmStatus(value, 35, 45, 55),
     });
-  }, [nodeData.kpis, liveMetrics, dailyMax, averageMinutes, nodeId]);
+
+    const pm10Average = resolveLiveValue({
+      loading,
+      error: liveMetricsError,
+      noData: liveMetricsNoData,
+      value: liveMetrics?.pm10,
+      formatValue: (value) => String(value),
+      getStatus: (value) => pmStatus(value, 150, 160, 170),
+    });
+
+    const pm25MaxData = dailyMax?.pm25;
+    const pm25MaxValue = pm25MaxData?.max;
+    const pm25Max = resolveLiveValue({
+      loading,
+      error: dailyMaxError,
+      noData: dailyMaxNoData || typeof pm25MaxValue !== "number" || Number.isNaN(pm25MaxValue),
+      value: pm25MaxValue,
+      formatValue: (value) => value.toFixed(1),
+      getStatus: (value) => pmStatus(value, 35, 45, 55),
+    });
+
+    const pm10MaxData = dailyMax?.pm10;
+    const pm10MaxValue = pm10MaxData?.max;
+    const pm10Max = resolveLiveValue({
+      loading,
+      error: dailyMaxError,
+      noData: dailyMaxNoData || typeof pm10MaxValue !== "number" || Number.isNaN(pm10MaxValue),
+      value: pm10MaxValue,
+      formatValue: (value) => value.toFixed(1),
+      getStatus: (value) => pmStatus(value, 150, 160, 170),
+    });
+
+    return [
+      {
+        id: "pm25_avg",
+        label: getAnalysisAverageKpiLabel(averageMinutes, "pm25"),
+        unit: "μg/m³",
+        limit: "Threshold 35 μg/m³",
+        ...pm25Average,
+      },
+      {
+        id: "pm10_avg",
+        label: getAnalysisAverageKpiLabel(averageMinutes, "pm10"),
+        unit: "μg/m³",
+        limit: "Threshold 150 μg/m³",
+        ...pm10Average,
+      },
+      {
+        id: "pm25_max",
+        label: "PM2.5 Max",
+        unit: "μg/m³",
+        limit: "Threshold 35 μg/m³",
+        peakTime:
+          !loading &&
+          !dailyMaxError &&
+          !dailyMaxNoData &&
+          typeof pm25MaxValue === "number"
+            ? formatPeakTime(pm25MaxData?.time)
+            : null,
+        ...pm25Max,
+      },
+      {
+        id: "pm10_max",
+        label: "PM10 Max",
+        unit: "μg/m³",
+        limit: "Threshold 150 μg/m³",
+        peakTime:
+          !loading &&
+          !dailyMaxError &&
+          !dailyMaxNoData &&
+          typeof pm10MaxValue === "number"
+            ? formatPeakTime(pm10MaxData?.time)
+            : null,
+        ...pm10Max,
+      },
+    ];
+  }, [
+    loading,
+    liveMetrics,
+    dailyMax,
+    averageMinutes,
+    liveMetricsError,
+    dailyMaxError,
+    liveMetricsNoData,
+    dailyMaxNoData,
+  ]);
 
   const content = (
     <>
@@ -104,6 +160,9 @@ export default function DustAnalysis({
                 <span className="na-kpi-card__label">{kpi.label}</span>
                 {kpi.peakTime && (
                   <span className="na-kpi-card__desc">발생시간 {kpi.peakTime}</span>
+                )}
+                {kpi.dataStatus && (
+                  <span className="na-kpi-card__desc">{kpi.dataStatus}</span>
                 )}
               </div>
               <StatusBadge status={kpi.status} />

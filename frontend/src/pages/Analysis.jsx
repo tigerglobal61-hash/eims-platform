@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import FilterChips from "../components/FilterChips";
 import NodeSelect from "../components/NodeSelect";
 import {
@@ -26,71 +26,104 @@ const TAB_CONTENT = {
   pm: DustAnalysis,
 };
 
+function resetLiveDataState(setters) {
+  setters.setLiveMetrics(null);
+  setters.setDailyMax(null);
+  setters.setLoading(true);
+  setters.setLiveMetricsError(false);
+  setters.setDailyMaxError(false);
+  setters.setLiveMetricsNoData(false);
+  setters.setDailyMaxNoData(false);
+}
+
 export default function Analysis() {
-  const [selectedNodeId, setSelectedNodeId] = useState("T1");
+  const [selectedNodeId, setSelectedNodeId] = useState("D1");
   const [activeTab, setActiveTab] = useState("noise");
   const [averageMinutes, setAverageMinutes] = useState(15);
-  const [t1Metrics, setT1Metrics] = useState(null);
-  const [t1DailyMax, setT1DailyMax] = useState(null);
+  const [liveMetrics, setLiveMetrics] = useState(null);
+  const [dailyMax, setDailyMax] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [liveMetricsError, setLiveMetricsError] = useState(false);
+  const [dailyMaxError, setDailyMaxError] = useState(false);
+  const [liveMetricsNoData, setLiveMetricsNoData] = useState(false);
+  const [dailyMaxNoData, setDailyMaxNoData] = useState(false);
   const ActivePanel = TAB_CONTENT[activeTab];
 
-  useEffect(() => {
-    if (selectedNodeId !== "T1") {
-      setT1Metrics(null);
-      setT1DailyMax(null);
-      return undefined;
-    }
+  const liveStateSetters = {
+    setLiveMetrics,
+    setDailyMax,
+    setLoading,
+    setLiveMetricsError,
+    setDailyMaxError,
+    setLiveMetricsNoData,
+    setDailyMaxNoData,
+  };
 
+  function handleNodeChange(nodeId) {
+    resetLiveDataState(liveStateSetters);
+    setSelectedNodeId(nodeId);
+  }
+
+  function handleAverageChange(label) {
+    resetLiveDataState(liveStateSetters);
+    setAverageMinutes(ANALYSIS_AVERAGE_WINDOW_MINUTES[label]);
+  }
+
+  useEffect(() => {
     let cancelled = false;
 
-    async function loadT1KpiData() {
-      try {
-        const avgData = await fetchLatestAverage("T1", averageMinutes);
-        const metrics = mapLatestAvgToNodeMetrics(avgData);
-
-        if (!cancelled && metrics) {
-          setT1Metrics(metrics);
-        }
-      } catch {
-        // Keep previously displayed values on failure.
+    async function loadKpiData(isBackgroundRefresh = false) {
+      if (!isBackgroundRefresh) {
+        setLoading(true);
       }
 
       try {
-        const maxData = await fetchDailyMax("T1");
+        const avgData = await fetchLatestAverage(selectedNodeId, averageMinutes);
+        const metrics = mapLatestAvgToNodeMetrics(avgData);
 
         if (!cancelled) {
-          setT1DailyMax(maxData);
+          setLiveMetrics(metrics);
+          setLiveMetricsError(false);
+          setLiveMetricsNoData(!metrics);
         }
       } catch {
-        // Keep previously displayed values on failure.
+        if (!cancelled) {
+          setLiveMetrics(null);
+          setLiveMetricsError(true);
+          setLiveMetricsNoData(false);
+        }
+      }
+
+      try {
+        const maxData = await fetchDailyMax(selectedNodeId);
+
+        if (!cancelled) {
+          setDailyMax(maxData);
+          setDailyMaxError(false);
+          setDailyMaxNoData(!maxData);
+        }
+      } catch {
+        if (!cancelled) {
+          setDailyMax(null);
+          setDailyMaxError(true);
+          setDailyMaxNoData(false);
+        }
+      }
+
+      if (!cancelled) {
+        setLoading(false);
       }
     }
 
-    loadT1KpiData();
+    loadKpiData();
 
-    const timer = window.setInterval(loadT1KpiData, KPI_REFRESH_MS);
+    const timer = window.setInterval(() => loadKpiData(true), KPI_REFRESH_MS);
 
     return () => {
       cancelled = true;
       window.clearInterval(timer);
     };
   }, [selectedNodeId, averageMinutes]);
-
-  const liveMetrics = useMemo(() => {
-    if (selectedNodeId !== "T1") {
-      return null;
-    }
-
-    return t1Metrics ?? null;
-  }, [selectedNodeId, t1Metrics]);
-
-  const dailyMax = useMemo(() => {
-    if (selectedNodeId !== "T1") {
-      return null;
-    }
-
-    return t1DailyMax;
-  }, [selectedNodeId, t1DailyMax]);
 
   return (
     <div className="page-shell analysis-page">
@@ -99,16 +132,14 @@ export default function Analysis() {
           <NodeSelect
             id="analysis-node-select"
             value={selectedNodeId}
-            onChange={setSelectedNodeId}
+            onChange={handleNodeChange}
             meta={formatNodeLocation(selectedNodeId)}
           />
-          {selectedNodeId === "T1" && (
-            <FilterChips
-              options={ANALYSIS_AVERAGE_WINDOW_OPTIONS}
-              value={getAnalysisAverageWindowLabel(averageMinutes)}
-              onChange={(label) => setAverageMinutes(ANALYSIS_AVERAGE_WINDOW_MINUTES[label])}
-            />
-          )}
+          <FilterChips
+            options={ANALYSIS_AVERAGE_WINDOW_OPTIONS}
+            value={getAnalysisAverageWindowLabel(averageMinutes)}
+            onChange={handleAverageChange}
+          />
         </div>
       </section>
 
@@ -131,6 +162,11 @@ export default function Analysis() {
         liveMetrics={liveMetrics}
         dailyMax={dailyMax}
         averageMinutes={averageMinutes}
+        loading={loading}
+        liveMetricsError={liveMetricsError}
+        dailyMaxError={dailyMaxError}
+        liveMetricsNoData={liveMetricsNoData}
+        dailyMaxNoData={dailyMaxNoData}
         key={`${activeTab}-${selectedNodeId}-${averageMinutes}`}
       />
     </div>
