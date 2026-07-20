@@ -1,3 +1,4 @@
+from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from typing import Optional
 from zoneinfo import ZoneInfo
@@ -5,12 +6,36 @@ from app.auth.routes import router as auth_router
 from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
 from influxdb_client import InfluxDBClient, Point
+from influxdb_client.client.write_api import SYNCHRONOUS
 from pydantic import BaseModel
 
 from app.config import INFLUX_URL, INFLUX_TOKEN, INFLUX_ORG, INFLUX_BUCKET
 import requests
 
-app = FastAPI(title="EIMS API")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Create shared external clients once and close them on shutdown."""
+    influx_client = InfluxDBClient(
+        url=INFLUX_URL,
+        token=INFLUX_TOKEN,
+        org=INFLUX_ORG,
+    )
+
+    app.state.influx_client = influx_client
+    app.state.query_api = influx_client.query_api()
+    app.state.write_api = influx_client.write_api(write_options=SYNCHRONOUS)
+    app.state.http_session = requests.Session()
+
+    try:
+        yield
+    finally:
+        app.state.http_session.close()
+        app.state.write_api.close()
+        influx_client.close()
+
+
+app = FastAPI(title="EIMS API", lifespan=lifespan)
 
 app.include_router(auth_router)
 
@@ -28,14 +53,6 @@ DAILY_MAX_FIELDS = ("noise_dba", "pm25", "pm10")
 SITE_DEVICE_IDS = ("D1", "D2", "D3", "D4", "D5", "D6", "D7", "D8")
 SITE_AVG_FIELDS = ("noise_dba", "pm25", "pm10")
 DEFAULT_SITE_ID = "HEP"
-
-
-def get_influx_client():
-    return InfluxDBClient(
-        url=INFLUX_URL,
-        token=INFLUX_TOKEN,
-        org=INFLUX_ORG,
-    )
 
 
 class SensorData(BaseModel):
@@ -80,7 +97,7 @@ def receive_data(data: SensorData):
         .time(datetime.now(timezone.utc))
     )
 
-    fields = data.dict()
+    fields = data.model_dump()
 
     for key, value in fields.items():
         if key in ["site_id", "zone", "device_id", "comm_type", "deployment_status"]:
@@ -88,9 +105,11 @@ def receive_data(data: SensorData):
         if value is not None:
             point = point.field(key, value)
 
-    with get_influx_client() as client:
-        write_api = client.write_api()
-        write_api.write(bucket=INFLUX_BUCKET, org=INFLUX_ORG, record=point)
+    app.state.write_api.write(
+        bucket=INFLUX_BUCKET,
+        org=INFLUX_ORG,
+        record=point,
+    )
 
     return {
         "status": "received",
@@ -112,17 +131,15 @@ def latest(device_id: str = "T1"):
 
     result = {}
 
-    with get_influx_client() as client:
-        query_api = client.query_api()
-        tables = query_api.query(query)
+    tables = app.state.query_api.query(query)
 
-        for table in tables:
-            for record in table.records:
-                result[record.get_field()] = record.get_value()
-                result["time"] = record.get_time().isoformat()
-                result["device_id"] = record.values.get("device_id")
-                result["site_id"] = record.values.get("site_id")
-                result["zone"] = record.values.get("zone")
+    for table in tables:
+        for record in table.records:
+            result[record.get_field()] = record.get_value()
+            result["time"] = record.get_time().isoformat()
+            result["device_id"] = record.values.get("device_id")
+            result["site_id"] = record.values.get("site_id")
+            result["zone"] = record.values.get("zone")
 
     return result
 
@@ -139,18 +156,16 @@ def history(device_id: str = "T1", field: str = "noise_dba", hours: int = 1):
 
     data = []
 
-    with get_influx_client() as client:
-        query_api = client.query_api()
-        tables = query_api.query(query)
+    tables = app.state.query_api.query(query)
 
-        for table in tables:
-            for record in table.records:
-                data.append({
-                    "time": record.get_time().isoformat(),
-                    "value": record.get_value(),
-                    "field": record.get_field(),
-                    "device_id": record.values.get("device_id"),
-                })
+    for table in tables:
+        for record in table.records:
+            data.append({
+                "time": record.get_time().isoformat(),
+                "value": record.get_value(),
+                "field": record.get_field(),
+                "device_id": record.values.get("device_id"),
+            })
 
     return data
 
@@ -173,7 +188,7 @@ ALERT_SEVERITY_RANK = {
 
 
 def noaa_get(url: str):
-    response = requests.get(
+    response = app.state.http_session.get(
         url,
         headers={
             "Accept": "application/geo+json",
@@ -304,13 +319,11 @@ def latest_avg(device_id: str = "T1", minutes: int = 15):
         "window_minutes": minutes,
     }
 
-    with get_influx_client() as client:
-        query_api = client.query_api()
-        tables = query_api.query(query)
+    tables = app.state.query_api.query(query)
 
-        for table in tables:
-            for record in table.records:
-                result[record.get_field()] = round(record.get_value(), 2)
+    for table in tables:
+        for record in table.records:
+            result[record.get_field()] = round(record.get_value(), 2)
 
     result["time"] = datetime.now(timezone.utc).isoformat()
     return result
@@ -359,21 +372,19 @@ def site_avg(minutes: int = Query(15, ge=1, le=1440)):
 
     device_metrics = {device_id: {} for device_id in SITE_DEVICE_IDS}
 
-    with get_influx_client() as client:
-        query_api = client.query_api()
-        tables = query_api.query(query)
+    tables = app.state.query_api.query(query)
 
-        for table in tables:
-            for record in table.records:
-                device_id = record.values.get("device_id")
-                if device_id not in device_metrics:
-                    continue
+    for table in tables:
+        for record in table.records:
+            device_id = record.values.get("device_id")
+            if device_id not in device_metrics:
+                continue
 
-                value = record.get_value()
-                if value is None:
-                    continue
+            value = record.get_value()
+            if value is None:
+                continue
 
-                device_metrics[device_id][record.get_field()] = float(value)
+            device_metrics[device_id][record.get_field()] = float(value)
 
     active_device_ids = [
         device_id
@@ -442,24 +453,22 @@ def daily_max(device_id: str = "T1"):
         **{field: _empty_daily_max_entry() for field in DAILY_MAX_FIELDS},
     }
 
-    with get_influx_client() as client:
-        query_api = client.query_api()
-        tables = query_api.query(query)
+    tables = app.state.query_api.query(query)
 
-        for table in tables:
-            for record in table.records:
-                field = record.get_field()
-                if field not in DAILY_MAX_FIELDS:
-                    continue
+    for table in tables:
+        for record in table.records:
+            field = record.get_field()
+            if field not in DAILY_MAX_FIELDS:
+                continue
 
-                value = record.get_value()
-                if value is None:
-                    continue
+            value = record.get_value()
+            if value is None:
+                continue
 
-                result[field] = {
-                    "max": round(float(value), 2),
-                    "time": _format_chart_time(record.get_time()),
-                }
+            result[field] = {
+                "max": round(float(value), 2),
+                "time": _format_chart_time(record.get_time()),
+            }
 
     return result
 
@@ -483,19 +492,17 @@ def chart(device_id: str = "T1", hours: int = 24, window_minutes: int = 15):
 
     data = []
 
-    with get_influx_client() as client:
-        query_api = client.query_api()
-        tables = query_api.query(query)
+    tables = app.state.query_api.query(query)
 
-        for table in tables:
-            for record in table.records:
-                values = record.values
-                data.append({
-                    "time": _format_chart_time(record.get_time()),
-                    "noise": _round_chart_value(values.get("noise_dba")),
-                    "pm10": _round_chart_value(values.get("pm10")),
-                    "pm25": _round_chart_value(values.get("pm25")),
-                })
+    for table in tables:
+        for record in table.records:
+            values = record.values
+            data.append({
+                "time": _format_chart_time(record.get_time()),
+                "noise": _round_chart_value(values.get("noise_dba")),
+                "pm10": _round_chart_value(values.get("pm10")),
+                "pm25": _round_chart_value(values.get("pm25")),
+            })
 
     data.sort(key=lambda point: point["time"])
     return data
