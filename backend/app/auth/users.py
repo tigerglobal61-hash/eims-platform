@@ -15,4 +15,6 @@ USERS = {
     "hanmi01": {"password": "Eims@2026!", "role": "viewer"},
     "hanmi02": {"password": "Eims@2026!", "role": "viewer"},
     "hanmi03": {"password": "Eims@2026!", "role": "viewer"},
+    
+    "sign01": {"password": "Eims@2026!", "role": "viewer"},
 }
