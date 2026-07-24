@@ -9,7 +9,7 @@ from influxdb_client import InfluxDBClient, Point
 from influxdb_client.client.write_api import SYNCHRONOUS
 from pydantic import BaseModel
 
-from app.config import INFLUX_URL, INFLUX_TOKEN, INFLUX_ORG, INFLUX_BUCKET
+from app.config import INFLUX_URL, INFLUX_TOKEN, INFLUX_ORG, INFLUX_BUCKET, INFLUX_DEV_BUCKET
 import requests
 
 
@@ -75,6 +75,31 @@ class SensorData(BaseModel):
     qc_flag: float = 0.0
 
 
+class DevSensorData(BaseModel):
+    packet_id: str
+    device_id: str
+    site_id: str = "HEP"
+    zone: str = "Z2"
+    comm_type: str = "LTE"
+    deployment_status: str = "active"
+    timestamp: str
+    epoch: Optional[int] = None
+    boot_count: Optional[int] = None
+
+    noise_dba: Optional[float] = None
+    pm1: Optional[float] = None
+    pm25: Optional[float] = None
+    pm4: Optional[float] = None
+    pm10: Optional[float] = None
+    temperature: Optional[float] = None
+    humidity: Optional[float] = None
+    voc_index: Optional[float] = None
+    nox_index: Optional[float] = None
+    qc_flag: float = 0.0
+    rssi: Optional[float] = None
+    snr: Optional[float] = None
+
+
 @app.get("/")
 def root():
     return {"message": "EIMS API is running"}
@@ -107,6 +132,56 @@ def receive_data(data: SensorData):
 
     app.state.write_api.write(
         bucket=INFLUX_BUCKET,
+        org=INFLUX_ORG,
+        record=point,
+    )
+
+    return {
+        "status": "received",
+        "device_id": data.device_id,
+        "site_id": data.site_id,
+        "zone": data.zone,
+    }
+
+
+@app.post("/api/v1/data/dev")
+def receive_data_dev(data: DevSensorData):
+    point_time = (
+        datetime.fromtimestamp(data.epoch, tz=timezone.utc)
+        if data.epoch is not None
+        else datetime.now(timezone.utc)
+    )
+
+    point = (
+        Point("sensor_data")
+        .tag("site_id", data.site_id)
+        .tag("zone", data.zone)
+        .tag("device_id", data.device_id)
+        .tag("comm_type", data.comm_type)
+        .tag("deployment_status", data.deployment_status)
+        .tag("packet_id", data.packet_id)
+        .time(point_time)
+    )
+
+    fields = data.model_dump()
+
+    for key, value in fields.items():
+        if key in [
+            "site_id",
+            "zone",
+            "device_id",
+            "comm_type",
+            "deployment_status",
+            "packet_id",
+            "timestamp",
+            "epoch",
+        ]:
+            continue
+        if value is not None:
+            point = point.field(key, value)
+
+    app.state.write_api.write(
+        bucket=INFLUX_DEV_BUCKET,
         org=INFLUX_ORG,
         record=point,
     )
