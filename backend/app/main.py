@@ -1,6 +1,6 @@
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Optional, List
 from zoneinfo import ZoneInfo
 from app.auth.routes import router as auth_router
 from fastapi import FastAPI, Query
@@ -144,8 +144,7 @@ def receive_data(data: SensorData):
     }
 
 
-@app.post("/api/v1/data/dev")
-def receive_data_dev(data: DevSensorData):
+def _build_dev_point(data: DevSensorData) -> Point:
     point_time = (
         datetime.fromtimestamp(data.epoch, tz=timezone.utc)
         if data.epoch is not None
@@ -180,6 +179,13 @@ def receive_data_dev(data: DevSensorData):
         if value is not None:
             point = point.field(key, value)
 
+    return point
+
+
+@app.post("/api/v1/data/dev")
+def receive_data_dev(data: DevSensorData):
+    point = _build_dev_point(data)
+
     app.state.write_api.write(
         bucket=INFLUX_DEV_BUCKET,
         org=INFLUX_ORG,
@@ -188,9 +194,34 @@ def receive_data_dev(data: DevSensorData):
 
     return {
         "status": "received",
+        "count": 1,
         "device_id": data.device_id,
         "site_id": data.site_id,
         "zone": data.zone,
+    }
+
+
+@app.post("/api/v1/data/dev/batch")
+def receive_data_dev_batch(data: List[DevSensorData]):
+    if not data:
+        return {
+            "status": "received",
+            "count": 0,
+            "device_ids": [],
+        }
+
+    points = [_build_dev_point(item) for item in data]
+
+    app.state.write_api.write(
+        bucket=INFLUX_DEV_BUCKET,
+        org=INFLUX_ORG,
+        record=points,
+    )
+
+    return {
+        "status": "received",
+        "count": len(data),
+        "device_ids": [item.device_id for item in data],
     }
 
 
