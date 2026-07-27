@@ -1,3 +1,4 @@
+import logging
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from typing import Optional, List
@@ -11,6 +12,8 @@ from pydantic import BaseModel
 
 from app.config import INFLUX_URL, INFLUX_TOKEN, INFLUX_ORG, INFLUX_BUCKET, INFLUX_DEV_BUCKET
 import requests
+
+logger = logging.getLogger("uvicorn")
 
 
 @asynccontextmanager
@@ -210,6 +213,11 @@ def receive_data_dev_batch(data: List[DevSensorData]):
             "device_ids": [],
         }
 
+    logger.info("[DEV BATCH] Received %s records", len(data))
+    logger.info("[DEV BATCH] Devices: %s", [item.device_id for item in data])
+    for item in data:
+        logger.info("[DEV DATA] %s", item.model_dump())
+
     points = [_build_dev_point(item) for item in data]
 
     app.state.write_api.write(
@@ -217,6 +225,8 @@ def receive_data_dev_batch(data: List[DevSensorData]):
         org=INFLUX_ORG,
         record=points,
     )
+
+    logger.info("[DEV BATCH] Influx write complete (%s records)", len(data))
 
     return {
         "status": "received",
