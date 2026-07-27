@@ -29,6 +29,8 @@ async def lifespan(app: FastAPI):
     app.state.query_api = influx_client.query_api()
     app.state.write_api = influx_client.write_api(write_options=SYNCHRONOUS)
     app.state.http_session = requests.Session()
+    app.state.latest_dev_batch = []
+    app.state.latest_dev_batch_updated_at = None
 
     try:
         yield
@@ -220,6 +222,9 @@ def receive_data_dev_batch(data: List[DevSensorData]):
 
     points = [_build_dev_point(item) for item in data]
 
+    app.state.latest_dev_batch = [item.model_dump() for item in data]
+    app.state.latest_dev_batch_updated_at = datetime.now(timezone.utc).isoformat()
+
     app.state.write_api.write(
         bucket=INFLUX_DEV_BUCKET,
         org=INFLUX_ORG,
@@ -232,6 +237,16 @@ def receive_data_dev_batch(data: List[DevSensorData]):
         "status": "received",
         "count": len(data),
         "device_ids": [item.device_id for item in data],
+    }
+
+
+@app.get("/api/v1/data/dev/latest")
+def latest_dev_batch():
+    records = getattr(app.state, "latest_dev_batch", []) or []
+    return {
+        "count": len(records),
+        "updated_at": getattr(app.state, "latest_dev_batch_updated_at", None),
+        "records": records,
     }
 
 
