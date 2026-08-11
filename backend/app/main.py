@@ -4,6 +4,8 @@ from datetime import datetime, timezone
 from typing import Optional, List
 from zoneinfo import ZoneInfo
 from app.auth.routes import router as auth_router
+from app.alerts.routes import router as alerts_router
+from app.alerts.store import AlertStore
 from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
 from influxdb_client import InfluxDBClient, Point
@@ -31,6 +33,7 @@ async def lifespan(app: FastAPI):
     app.state.http_session = requests.Session()
     app.state.latest_dev_batch = []
     app.state.latest_dev_batch_updated_at = None
+    app.state.alert_store = AlertStore()
 
     try:
         yield
@@ -43,6 +46,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="EIMS API", lifespan=lifespan)
 
 app.include_router(auth_router)
+app.include_router(alerts_router)
 
 app.add_middleware(
     CORSMiddleware,
