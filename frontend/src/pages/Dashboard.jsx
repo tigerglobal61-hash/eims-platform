@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import MetricTrendChart from "../components/MetricTrendChart";
 import NodeSelect from "../components/NodeSelect";
 import StatusBadge from "../components/StatusBadge";
@@ -9,15 +9,24 @@ import {
   mapLatestAvgToNodeMetrics,
   mapSiteAverageToNodeMetrics,
 } from "../api/latest";
+import {
+  ALERTS_REFRESH_MS,
+  fetchAlerts,
+  formatAlertDate,
+  formatAlertDuration,
+  formatAlertTime,
+  getAlertEndTitle,
+  getAlertLevelClass,
+} from "../api/alerts";
 import { getNoaaWeather, getPrimaryAlert } from "../api/weather";
 import { CHART_COLORS } from "../data/mockData";
 import useChartData from "../hooks/useChartData";
 import { formatNodeLocation } from "../data/nodes";
-import {
-  METRIC_THRESHOLDS,
-  MOVING_AVERAGE_LABEL,
-  getMetricStatus,
-} from "../data/thresholds";
+import { METRIC_THRESHOLDS, getMetricStatus } from "../data/thresholds";
+import { getAlertLevelDisplayLabel } from "../utils/statusDisplayLabels";
+
+const MOVING_AVERAGE_MINUTES = 60;
+const MOVING_AVERAGE_LABEL = "1-hour moving average";
 const KPI_PLACEHOLDERS = { noise: "—", pm10: "—", pm25: "—" };
 
 function getKpiLoadMeta(loading, error, metrics) {
@@ -27,11 +36,87 @@ function getKpiLoadMeta(loading, error, metrics) {
   return null;
 }
 const KPI_ORDER = ["noise", "pm10", "pm25"];
-const ALERTS_REFRESH_MS = 5 * 60 * 1000;
+const WEATHER_REFRESH_MS = 5 * 60 * 1000;
+const ALERTS_PER_PAGE = 10;
+
+function toUtcIso(date) {
+  return date.toISOString().replace(/\.\d{3}Z$/, "Z");
+}
+
+function createSampleAlert(preset, nowMs = Date.now()) {
+  if (preset === "attention") {
+    const startedMs = nowMs - 12 * 60 * 1000;
+    return {
+      sample: true,
+      preset: "attention",
+      alert_id: "sample-attention",
+      device_id: "D3",
+      category: "Noise",
+      level: "Attention",
+      started_at: toUtcIso(new Date(startedMs)),
+      ended_at: null,
+      duration_seconds: 12 * 60,
+      status: "active",
+    };
+  }
+
+  if (preset === "elevated") {
+    const startedMs = nowMs - 34 * 60 * 1000;
+    return {
+      sample: true,
+      preset: "elevated",
+      alert_id: "sample-elevated",
+      device_id: "D5",
+      category: "PM10",
+      level: "Elevated",
+      started_at: toUtcIso(new Date(startedMs)),
+      ended_at: null,
+      duration_seconds: 34 * 60,
+      status: "active",
+    };
+  }
+
+  if (preset === "high") {
+    const startedMs = nowMs - 8 * 60 * 1000;
+    return {
+      sample: true,
+      preset: "high",
+      alert_id: "sample-high",
+      device_id: "D7",
+      category: "PM2.5",
+      level: "High",
+      started_at: toUtcIso(new Date(startedMs)),
+      ended_at: null,
+      duration_seconds: 8 * 60,
+      status: "active",
+    };
+  }
+
+  const endedMs = nowMs - 25 * 60 * 60 * 1000;
+  const startedMs = endedMs - 32 * 60 * 1000;
+  return {
+    sample: true,
+    preset: "resolved",
+    alert_id: "sample-resolved",
+    device_id: "D3",
+    category: "Noise",
+    level: "Attention",
+    started_at: toUtcIso(new Date(startedMs)),
+    ended_at: toUtcIso(new Date(endedMs)),
+    duration_seconds: 32 * 60,
+    status: "resolved",
+  };
+}
+
+function buildSamplePreviewAlerts(nowMs = Date.now()) {
+  return ["attention", "elevated", "high", "resolved"].map((preset) =>
+    createSampleAlert(preset, nowMs)
+  );
+}
 
 const SITE_AVERAGE_NOTICE = {
-  ko: "현장 대표값은 활성 노드별 15분 이동평균값의 평균입니다. 알림 및 기준 초과 판단은 각 노드별 15분 이동평균값을 기준으로 개별 판단합니다.",
-  en: "Site average = average of each active node's 15-min moving average. Alerts are evaluated per node.",
+  ko: "현장 대표값은 활성 노드별 1시간 이동평균값의 평균입니다. 알림 및 기준 초과 판단도 각 노드별 1시간 이동평균값을 기준으로 개별 판단합니다.",
+  en: "Site average = average of each active node's 1-hour moving average. Alerts and threshold exceedances are evaluated per node using the 1-hour moving average.",
 };
 
 function formatAlertExpires(isoString) {
@@ -67,8 +152,117 @@ function ForecastDay({ label, period }) {
   );
 }
 
-function NoaaWeatherCard({ forecast, alerts, loading, error }) {
-  const primaryAlert = getPrimaryAlert(alerts);
+function AlertLevelBadge({ level }) {
+  return (
+    <span className={`alert-level-badge ${getAlertLevelClass(level)}`}>
+      <span className="alert-level-badge__dot" />
+      {getAlertLevelDisplayLabel(level)}
+    </span>
+  );
+}
+
+function getAlertRowNumber({ alerts, rowIndex, isSamplePreview, totalAlertCount, alertsPage }) {
+  if (isSamplePreview) {
+    return alerts.length - rowIndex;
+  }
+
+  return totalAlertCount - ((alertsPage - 1) * ALERTS_PER_PAGE + rowIndex);
+}
+
+function AlertHistoryTable({
+  alerts,
+  durationTick,
+  isSamplePreview = false,
+  totalAlertCount = 0,
+  alertsPage = 1,
+}) {
+  return (
+    <table className="data-table dashboard-alerts-table">
+      <colgroup>
+        <col className="dashboard-alerts-table__col-index" />
+        <col className="dashboard-alerts-table__col-date" />
+        <col className="dashboard-alerts-table__col-node" />
+        <col className="dashboard-alerts-table__col-category" />
+        <col className="dashboard-alerts-table__col-level" />
+        <col className="dashboard-alerts-table__col-start" />
+        <col className="dashboard-alerts-table__col-end" />
+        <col className="dashboard-alerts-table__col-duration" />
+      </colgroup>
+      <thead>
+        <tr>
+          <th className="dashboard-alerts-table__th-index">#</th>
+          <th>Date</th>
+          <th>Node</th>
+          <th>Category</th>
+          <th>Level</th>
+          <th>Start</th>
+          <th>End</th>
+          <th>Duration</th>
+        </tr>
+      </thead>
+      <tbody>
+        {alerts.map((alert, rowIndex) => (
+          <tr
+            key={alert.alert_id}
+            className={
+              alert.status === "active"
+                ? "dashboard-alerts-table__row--active"
+                : alert.status === "resolved"
+                  ? "dashboard-alerts-table__row--resolved"
+                  : undefined
+            }
+          >
+            <td className="dashboard-alerts-table__index">
+              {getAlertRowNumber({
+                alerts,
+                rowIndex,
+                isSamplePreview,
+                totalAlertCount,
+                alertsPage,
+              })}
+            </td>
+            <td>{formatAlertDate(alert.started_at)}</td>
+            <td>{alert.device_id}</td>
+            <td>{alert.category}</td>
+            <td>
+              <AlertLevelBadge level={alert.level} />
+            </td>
+            <td>{formatAlertTime(alert.started_at)}</td>
+            <td title={getAlertEndTitle(alert.ended_at, alert.started_at)}>
+              {formatAlertTime(alert.ended_at)}
+            </td>
+            <td>{getAlertDurationDisplay(alert, durationTick, isSamplePreview)}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+function getAlertDurationDisplay(alert, durationTick, isSamplePreview = false) {
+  if (isSamplePreview && alert.status === "active") {
+    return "Ongoing";
+  }
+
+  return getLiveAlertDuration(alert, durationTick);
+}
+
+function getLiveAlertDuration(alert, nowMs) {
+  if (alert.status !== "active") {
+    return formatAlertDuration(alert.duration_seconds);
+  }
+
+  const startedMs = new Date(alert.started_at).getTime();
+  if (Number.isNaN(startedMs)) {
+    return formatAlertDuration(alert.duration_seconds);
+  }
+
+  const seconds = Math.max(0, Math.floor((nowMs - startedMs) / 1000));
+  return formatAlertDuration(seconds);
+}
+
+function NoaaWeatherCard({ forecast, weatherAlerts, loading, error }) {
+  const primaryAlert = getPrimaryAlert(weatherAlerts);
 
   return (
     <section className="weather-card panel" aria-live="polite">
@@ -116,7 +310,13 @@ function NoaaWeatherCard({ forecast, alerts, loading, error }) {
 export default function Dashboard() {
   const [selectedNodeId, setSelectedNodeId] = useState("D1");
   const [forecast, setForecast] = useState(null);
-  const [alerts, setAlerts] = useState([]);
+  const [weatherAlerts, setWeatherAlerts] = useState([]);
+  const [realAlerts, setRealAlerts] = useState([]);
+  const [samplePreviewEnabled, setSamplePreviewEnabled] = useState(false);
+  const [alertsPage, setAlertsPage] = useState(1);
+  const [alertsLoading, setAlertsLoading] = useState(true);
+  const [alertsError, setAlertsError] = useState(false);
+  const [durationTick, setDurationTick] = useState(Date.now());
   const [weatherLoading, setWeatherLoading] = useState(true);
   const [weatherError, setWeatherError] = useState(false);
   const [nodeMetrics, setNodeMetrics] = useState(null);
@@ -130,7 +330,33 @@ export default function Dashboard() {
   const selectedNodeMetrics = nodeMetrics ?? KPI_PLACEHOLDERS;
   const siteLoadMeta = getKpiLoadMeta(siteLoading, siteError, siteMetrics);
   const nodeLoadMeta = getKpiLoadMeta(nodeLoading, nodeError, nodeMetrics);
-  const { data: trendData } = useChartData(selectedNodeId);
+  const { data: trendData } = useChartData(selectedNodeId, {
+    hours: 24,
+    windowMinutes: MOVING_AVERAGE_MINUTES,
+  });
+
+  const totalAlertPages =
+    realAlerts.length === 0 ? 0 : Math.ceil(realAlerts.length / ALERTS_PER_PAGE);
+  const paginatedAlerts =
+    totalAlertPages === 0
+      ? []
+      : realAlerts.slice(
+          (alertsPage - 1) * ALERTS_PER_PAGE,
+          alertsPage * ALERTS_PER_PAGE
+        );
+  const showAlertPagination = realAlerts.length > ALERTS_PER_PAGE;
+  const samplePreviewAlerts = useMemo(
+    () => (samplePreviewEnabled ? buildSamplePreviewAlerts() : []),
+    [samplePreviewEnabled]
+  );
+
+  function handlePreviousAlertPage() {
+    setAlertsPage((page) => Math.max(1, page - 1));
+  }
+
+  function handleNextAlertPage() {
+    setAlertsPage((page) => Math.min(totalAlertPages, page + 1));
+  }
 
   function handleNodeChange(nodeId) {
     setNodeMetrics(null);
@@ -148,7 +374,7 @@ export default function Dashboard() {
       }
 
       try {
-        const data = await fetchSiteAverage(15);
+        const data = await fetchSiteAverage(MOVING_AVERAGE_MINUTES);
         const metrics = mapSiteAverageToNodeMetrics(data);
 
         if (!cancelled) {
@@ -186,7 +412,7 @@ export default function Dashboard() {
       }
 
       try {
-        const data = await fetchLatestAverage(selectedNodeId, 15);
+        const data = await fetchLatestAverage(selectedNodeId, MOVING_AVERAGE_MINUTES);
         const metrics = mapLatestAvgToNodeMetrics(data);
 
         if (!cancelled) {
@@ -229,12 +455,12 @@ export default function Dashboard() {
   
         if (!cancelled) {
           setForecast(weather.forecast);
-          setAlerts(weather.alerts ?? []);
+          setWeatherAlerts(weather.alerts ?? []);
         }
       } catch {
         if (!cancelled) {
           setWeatherError(true);
-          setAlerts([]);
+          setWeatherAlerts([]);
         }
       } finally {
         if (!cancelled) {
@@ -247,7 +473,7 @@ export default function Dashboard() {
   
     const weatherTimer = window.setInterval(
       () => loadWeather(false),
-      ALERTS_REFRESH_MS
+      WEATHER_REFRESH_MS
     );
   
     return () => {
@@ -256,6 +482,63 @@ export default function Dashboard() {
     };
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadRecentAlerts(isBackgroundRefresh = false) {
+      if (!isBackgroundRefresh) {
+        setAlertsLoading(true);
+      }
+
+      try {
+        const alerts = await fetchAlerts(100);
+
+        if (!cancelled) {
+          setRealAlerts(alerts);
+          setAlertsError(false);
+          setDurationTick(Date.now());
+        }
+      } catch (error) {
+        console.error("[Dashboard] Failed to load alerts:", error);
+        if (!cancelled) {
+          if (!isBackgroundRefresh) {
+            setRealAlerts([]);
+          }
+          setAlertsError(true);
+        }
+      } finally {
+        if (!cancelled) {
+          setAlertsLoading(false);
+        }
+      }
+    }
+
+    loadRecentAlerts();
+
+    const refreshTimer = window.setInterval(
+      () => loadRecentAlerts(true),
+      ALERTS_REFRESH_MS
+    );
+    const durationTimer = window.setInterval(
+      () => setDurationTick(Date.now()),
+      30000
+    );
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(refreshTimer);
+      window.clearInterval(durationTimer);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (totalAlertPages === 0) {
+      setAlertsPage(1);
+      return;
+    }
+
+    setAlertsPage((page) => Math.min(Math.max(page, 1), totalAlertPages));
+  }, [totalAlertPages]);
 
   function renderKpiSectionMeta(loadMeta) {
     if (!loadMeta) {
@@ -309,7 +592,7 @@ export default function Dashboard() {
         <div className="dashboard-overview-right">
           <NoaaWeatherCard
             forecast={forecast}
-            alerts={alerts}
+            weatherAlerts={weatherAlerts}
             loading={weatherLoading}
             error={weatherError}
           />
@@ -317,12 +600,91 @@ export default function Dashboard() {
       </div>
 
       <section className="panel panel--table dashboard-alerts-wide">
-        <div className="section-header">
+        <div className="section-header dashboard-alerts-wide__header">
           <h2 className="section-title">Recent Alerts</h2>
+          <span className="section-meta">{realAlerts.length} events</span>
         </div>
-        <div className="table-wrap dashboard-alerts-wide__scroll">
-          <p className="dashboard-notice__text">No recent alerts</p>
-          <p className="dashboard-notice__subtext">No alerts have been recorded.</p>
+
+        <div className="dashboard-alerts-sample">
+          <div className="dashboard-alerts-sample__label">Sample Preview</div>
+          <button
+            type="button"
+            className={`dashboard-alerts-sample__toggle${
+              samplePreviewEnabled ? " dashboard-alerts-sample__toggle--on" : ""
+            }`}
+            aria-pressed={samplePreviewEnabled}
+            onClick={() => setSamplePreviewEnabled((enabled) => !enabled)}
+          >
+            {samplePreviewEnabled ? "ON" : "OFF"}
+          </button>
+        </div>
+
+        {samplePreviewEnabled && (
+          <div className="dashboard-alerts-section dashboard-alerts-section--sample">
+            <div className="table-wrap dashboard-alerts-section__table">
+              <AlertHistoryTable
+                alerts={samplePreviewAlerts}
+                durationTick={durationTick}
+                isSamplePreview
+              />
+            </div>
+          </div>
+        )}
+
+        <div className="dashboard-alerts-section">
+          <h3 className="dashboard-alerts-section__title">Actual Alert History</h3>
+
+          {alertsLoading && realAlerts.length === 0 && (
+            <p className="dashboard-notice__text">Loading alerts...</p>
+          )}
+
+          {!alertsLoading && alertsError && realAlerts.length === 0 && (
+            <>
+              <p className="dashboard-notice__text">Unable to load alerts</p>
+              <p className="dashboard-notice__subtext">
+                Alert events could not be retrieved from the API.
+              </p>
+            </>
+          )}
+
+          {!alertsError && realAlerts.length === 0 && !alertsLoading && (
+            <>
+              <p className="dashboard-notice__text">No recent alerts</p>
+              <p className="dashboard-notice__subtext">No alerts have been recorded.</p>
+            </>
+          )}
+
+          {paginatedAlerts.length > 0 && (
+            <>
+              <div className="table-wrap dashboard-alerts-section__table">
+                <AlertHistoryTable alerts={paginatedAlerts} durationTick={durationTick} totalAlertCount={realAlerts.length} alertsPage={alertsPage} />
+              </div>
+
+              {showAlertPagination && (
+                <div className="dashboard-alerts-pagination">
+                  <button
+                    type="button"
+                    className="dashboard-alerts-pagination__button"
+                    onClick={handlePreviousAlertPage}
+                    disabled={alertsPage <= 1}
+                  >
+                    Previous
+                  </button>
+                  <span className="dashboard-alerts-pagination__status">
+                    Page {alertsPage} of {totalAlertPages}
+                  </span>
+                  <button
+                    type="button"
+                    className="dashboard-alerts-pagination__button"
+                    onClick={handleNextAlertPage}
+                    disabled={alertsPage >= totalAlertPages}
+                  >
+                    Next
+                  </button>
+                </div>
+              )}
+            </>
+          )}
         </div>
       </section>
 

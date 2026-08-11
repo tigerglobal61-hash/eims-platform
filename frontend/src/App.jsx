@@ -39,11 +39,11 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
+      <Route path="/site-display-board" element={<SiteDisplayBoard />} />
       <Route element={<ProtectedRoute />}>
         <Route element={<DashboardLayout />}>
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/analysis" element={<Analysis />} />
-          <Route path="/site-display-board" element={<SiteDisplayBoard />} />
           <Route element={<AdminRoute />}>
             <Route path="/settings" element={<Settings />} />
           </Route>

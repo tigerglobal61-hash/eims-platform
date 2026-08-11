@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { CHART_REFRESH_MS, fetchChart } from "../api/chart";
 
-export default function useChartData(deviceId, { hours = 24, windowMinutes = 15 } = {}) {
+export default function useChartData(deviceId, { hours = 24, windowMinutes = 60 } = {}) {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);

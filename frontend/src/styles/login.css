@@ -84,3 +84,21 @@
     transform: rotate(360deg);
   }
 }
+
+.login-card__public-access {
+  margin-top: 24px;
+  padding-top: 24px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.login-card__public-btn {
+  margin-top: 0;
+}
+
+.login-card__public-caption {
+  margin: 8px 0 0;
+  font-size: 11px;
+  color: var(--text-muted);
+  text-align: center;
+  letter-spacing: 0.04em;
+}

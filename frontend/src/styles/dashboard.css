@@ -349,13 +349,121 @@
   min-width: 0;
 }
 
-.dashboard-alerts-wide__scroll {
-  max-height: 220px;
-  overflow-y: auto;
+.dashboard-alerts-wide__header {
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.dashboard-alerts-sample {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 12px;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.dashboard-alerts-sample__label {
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+  font-weight: 500;
+}
+
+.dashboard-alerts-sample__toggle {
+  background: var(--bg-surface-muted, #f4f4f5);
+  border: 1px solid var(--border-subtle);
+  border-radius: 999px;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  line-height: 1;
+  min-width: 52px;
+  padding: 7px 14px;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.dashboard-alerts-sample__toggle:hover {
+  border-color: var(--border-strong, #d4d4d8);
+  color: var(--text-secondary);
+}
+
+.dashboard-alerts-sample__toggle--on {
+  background: #eff6ff;
+  border-color: #93c5fd;
+  color: #1d4ed8;
+}
+
+.dashboard-alerts-section + .dashboard-alerts-section {
+  border-top: 1px solid var(--border-subtle);
+  margin-top: 16px;
+  padding-top: 16px;
+}
+
+.dashboard-alerts-section--sample {
+  margin-top: 12px;
+  padding-top: 0;
+  border-top: none;
+}
+
+.dashboard-alerts-section__title {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  margin: 0 0 10px;
+  text-transform: uppercase;
+}
+
+.dashboard-alerts-section__table {
+  overflow-x: auto;
 }
 
 .dashboard-alerts-wide .data-table {
   width: 100%;
+}
+
+.dashboard-alerts-table {
+  table-layout: fixed;
+}
+
+.dashboard-alerts-table__col-index {
+  width: 5%;
+}
+
+.dashboard-alerts-table__col-date {
+  width: 16%;
+}
+
+.dashboard-alerts-table__col-node {
+  width: 8%;
+}
+
+.dashboard-alerts-table__col-category {
+  width: 12%;
+}
+
+.dashboard-alerts-table__col-level {
+  width: 18%;
+}
+
+.dashboard-alerts-table__col-start,
+.dashboard-alerts-table__col-end {
+  width: 13%;
+}
+
+.dashboard-alerts-table__col-duration {
+  width: 15%;
+}
+
+.dashboard-alerts-table__th-index,
+.dashboard-alerts-table__index {
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  padding-inline: 8px;
+  text-align: center;
+  width: 5%;
 }
 
 .dashboard-alerts-wide thead th {
@@ -363,6 +471,90 @@
   top: 0;
   background: var(--bg-surface);
   z-index: 1;
+}
+
+.dashboard-alerts-pagination {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  margin-top: 12px;
+}
+
+.dashboard-alerts-pagination__button {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md, 8px);
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  min-width: 88px;
+  padding: 7px 12px;
+}
+
+.dashboard-alerts-pagination__button:hover:not(:disabled) {
+  border-color: var(--border-strong, #d4d4d8);
+  color: var(--text-primary);
+}
+
+.dashboard-alerts-pagination__button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.dashboard-alerts-pagination__status {
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
+  min-width: 96px;
+  text-align: center;
+}
+
+.alert-level-badge {
+  align-items: center;
+  display: inline-flex;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  gap: 6px;
+}
+
+.alert-level-badge__dot {
+  border-radius: 50%;
+  height: 8px;
+  width: 8px;
+}
+
+.alert-level-badge--attention {
+  color: var(--status-attention);
+}
+
+.alert-level-badge--attention .alert-level-badge__dot {
+  background: var(--status-attention);
+}
+
+.alert-level-badge--elevated {
+  color: var(--status-elevated);
+}
+
+.alert-level-badge--elevated .alert-level-badge__dot {
+  background: var(--status-elevated);
+}
+
+.alert-level-badge--high {
+  color: var(--status-high);
+}
+
+.alert-level-badge--high .alert-level-badge__dot {
+  background: var(--status-high);
+}
+
+.dashboard-alerts-table__row--active td:last-child {
+  font-variant-numeric: tabular-nums;
+}
+
+.dashboard-alerts-table__row--resolved {
+  opacity: 0.72;
 }
 
 

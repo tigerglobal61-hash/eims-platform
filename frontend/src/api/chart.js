@@ -32,7 +32,7 @@ export function formatChartTimeLabel(value) {
   });
 }
 
-export async function fetchChart(deviceId, hours = 24, windowMinutes = 15) {
+export async function fetchChart(deviceId, hours = 24, windowMinutes = 60) {
   const params = new URLSearchParams({
     device_id: deviceId,
     hours: String(hours),

@@ -86,6 +86,17 @@ export default function Login() {
             {loading ? "로그인 중..." : "로그인"}
           </button>
         </form>
+
+        <div className="login-card__public-access">
+          <button
+            type="button"
+            className="btn btn--ghost btn--full login-card__public-btn"
+            onClick={() => navigate("/site-display-board")}
+          >
+            현장 전광판 보기
+          </button>
+          <p className="login-card__public-caption">View Site Display Board</p>
+        </div>
       </div>
     </div>
   );

@@ -27,6 +27,9 @@
   --status-warning: #f59e0b;
   --status-critical: #ef4444;
   --status-info: #38bdf8;
+  --status-attention: #f5c517;
+  --status-elevated: #f97316;
+  --status-high: var(--status-critical);
   --sidebar-width: 260px;
   --topbar-height: 72px;
   --radius-sm: 4px;

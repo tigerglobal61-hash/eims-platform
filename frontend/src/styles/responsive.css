@@ -233,14 +233,14 @@
 }
 
 @media (max-width: 820px) {
-  .display-board-stage .display-board-metric {
+  .display-board-stage .db-metric-row {
     grid-template-columns: 1fr;
-    gap: 8px;
+    gap: 10px;
   }
 
-  .display-board-stage .display-board-metric__value {
+  .display-board-stage .db-metric-row__value {
+    justify-self: start;
     text-align: left;
-    font-size: 18px;
   }
 
   .display-board-led__meta {
