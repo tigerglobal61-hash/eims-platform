@@ -5,12 +5,12 @@ import {
   getGaugeThresholdLabels,
 } from "../utils/displayBoardStatus";
 
-function formatMetricValue(value, metricKey) {
+function formatMetricValue(value) {
   if (typeof value !== "number" || Number.isNaN(value)) {
     return "—";
   }
 
-  return value.toFixed(metricKey === "noise" ? 1 : 0);
+  return String(Math.round(value));
 }
 
 function GaugeTrack({ metricKey, max, value, hasValue }) {
@@ -61,7 +61,7 @@ export default function DisplayBoardMetricRow({ config, value }) {
   const status = hasValue
     ? getDisplayStatus(value, config.metricKey)
     : { code: "unavailable", label: "UNAVAILABLE" };
-  const formattedValue = formatMetricValue(value, config.metricKey);
+  const formattedValue = formatMetricValue(value);
   const unitText = config.unit.trim();
 
   return (
