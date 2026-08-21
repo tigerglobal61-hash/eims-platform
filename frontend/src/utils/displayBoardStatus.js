@@ -4,25 +4,20 @@ import { getStatusDisplayLabel } from "./statusDisplayLabels";
 export const GAUGE_CONFIG = {
   pm10: {
     metricKey: "pm10",
-    max: 200,
-    label: "Particulate (PM10)",
+    label: "Particulate Matter (PM10)",
     unit: " μg/m³",
   },
   pm25: {
     metricKey: "pm25",
-    max: 70,
-    label: "Particulate (PM2.5)",
+    label: "Ultra-fine Particles (PM2.5)",
     unit: " μg/m³",
   },
   noise: {
     metricKey: "noise",
-    max: 90,
-    label: "Noise (dBA)",
+    label: "Noise Level (dB)",
     unit: " dB(A)",
   },
 };
-
-export const GAUGE_SEGMENT_BOUNDARIES = [25, 50, 75];
 
 export function getDisplayStatus(value, metricKey) {
   if (typeof value !== "number" || Number.isNaN(value)) {
@@ -47,49 +42,24 @@ export function getDisplayStatus(value, metricKey) {
   };
 }
 
-export function getGaugeThresholdLabels(metricKey) {
-  const { levels } = METRIC_THRESHOLDS[metricKey];
-
-  return levels.map((level, index) => ({
-    value: level.value,
-    percent: GAUGE_SEGMENT_BOUNDARIES[index],
-  }));
-}
-
 /**
- * Maps a measured value into the visually equal 25% gauge segments,
- * interpolating within each segment using the metric's threshold bounds.
+ * Display Board presentation mapping only — does not change threshold/status logic.
+ * normal → GOOD, caution (Elevated) → FAIR, warning/critical (High/Very High) → POOR
  */
-export function getGaugeMarkerPercent(value, metricKey, max) {
-  if (typeof value !== "number" || Number.isNaN(value)) {
-    return 0;
+export function getDisplayBoardStatusPresentation(value, metricKey) {
+  const status = getDisplayStatus(value, metricKey);
+
+  switch (status.code) {
+    case "normal":
+      return { code: "good", label: "GOOD" };
+    case "caution":
+      return { code: "fair", label: "FAIR" };
+    case "warning":
+    case "critical":
+      return { code: "poor", label: "POOR" };
+    case "unavailable":
+      return { code: "unavailable", label: "—" };
+    default:
+      return { code: "good", label: "GOOD" };
   }
-
-  const { levels } = METRIC_THRESHOLDS[metricKey];
-  const [t1, t2, t3] = levels.map((level) => level.value);
-  const segmentSpan = 25;
-
-  if (value < t1) {
-    const lowerBound = 0;
-    const range = t1 - lowerBound || 1;
-    const ratio = (value - lowerBound) / range;
-    return ratio * segmentSpan;
-  }
-
-  if (value < t2) {
-    const range = t2 - t1 || 1;
-    const ratio = (value - t1) / range;
-    return segmentSpan + ratio * segmentSpan;
-  }
-
-  if (value < t3) {
-    const range = t3 - t2 || 1;
-    const ratio = (value - t2) / range;
-    return segmentSpan * 2 + ratio * segmentSpan;
-  }
-
-  const upperBound = max > t3 ? max : t3 + 1;
-  const range = upperBound - t3 || 1;
-  const ratio = Math.min(1, Math.max(0, (value - t3) / range));
-  return segmentSpan * 3 + ratio * segmentSpan;
 }
